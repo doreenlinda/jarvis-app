@@ -19,7 +19,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Erster Schritt: pruefen, ob das Handy Jarvis erreicht."
+            android:text="Sprich mit Jarvis oder tippe eine Nachricht."
             android:textSize="13sp"
             android:paddingBottom="16dp" />
 
@@ -51,8 +51,18 @@
             android:id="@+id/sendButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Senden"
-            android:layout_marginTop="12dp" />
+            android:text="Text senden"
+            android:layout_marginTop="8dp" />
+
+        <Button
+            android:id="@+id/talkButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🎤 Sprechen"
+            android:textSize="18sp"
+            android:layout_marginTop="16dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp" />
 
         <TextView
             android:id="@+id/answerView"

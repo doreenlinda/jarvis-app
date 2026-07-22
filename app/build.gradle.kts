@@ -11,8 +11,8 @@ android {
         applicationId = "com.jarvis.app"
         minSdk = 26          // Android 8.0 - deckt Doreens Galaxy locker ab
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "0.2"
     }
 
     buildTypes {
@@ -32,8 +32,8 @@ android {
 }
 
 dependencies {
-    // Bewusst minimal fuer den ersten Build: nur appcompat fuer die Activity.
-    // Netzwerk laeuft ueber Android-Bordmittel (HttpURLConnection + org.json),
-    // Audio/Kamera-Bibliotheken kommen erst in spaeteren Etappen dazu.
     implementation("androidx.appcompat:appcompat:1.7.0")
+    // OkHttp fuer den multipart-Upload (Audio-Datei + Formfelder an
+    // /assistant). Sehr etabliert, keine Versionskonflikte mit AGP 8.5.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
