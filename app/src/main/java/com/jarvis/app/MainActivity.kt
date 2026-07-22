@@ -18,6 +18,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
@@ -158,35 +160,60 @@ class MainActivity : AppCompatActivity() {
     private fun requestJarvis(text: String?, audio: File?) {
         val base = urlField.text.toString().trim().trimEnd('/')
         val key = keyField.text.toString().trim()
-        try {
-            val bodyBuilder = MultipartBody.Builder().setType(MultipartBody.FORM)
-                .addFormDataPart("key", key)
-            if (!text.isNullOrEmpty()) bodyBuilder.addFormDataPart("text", text)
-            if (audio != null) bodyBuilder.addFormDataPart(
-                "audio", "aufnahme.m4a", audio.asRequestBody("audio/mp4".toMediaType())
-            )
+        // Eine Kennung fuer diese Sende-Aktion - bleibt ueber alle Wiederhol-
+        // Versuche GLEICH, damit der Server bei einem Retry die schon fertige
+        // Antwort zurueckgibt statt neu zu verarbeiten (Idempotenz).
+        val requestId = UUID.randomUUID().toString()
+        val maxVersuche = 3
+        var letzterFehler = ""
 
-            val request = Request.Builder()
-                .url("$base/assistant")
-                .addHeader("ngrok-skip-browser-warning", "true")
-                .post(bodyBuilder.build())
-                .build()
+        for (versuch in 1..maxVersuche) {
+            try {
+                val bodyBuilder = MultipartBody.Builder().setType(MultipartBody.FORM)
+                    .addFormDataPart("key", key)
+                    .addFormDataPart("request_id", requestId)
+                if (!text.isNullOrEmpty()) bodyBuilder.addFormDataPart("text", text)
+                if (audio != null) bodyBuilder.addFormDataPart(
+                    "audio", "aufnahme.m4a", audio.asRequestBody("audio/mp4".toMediaType())
+                )
 
-            client.newCall(request).execute().use { resp ->
-                val respBody = resp.body?.string() ?: ""
-                if (!resp.isSuccessful) {
-                    runOnUiThread { answerView.text = "Fehler ${resp.code}: $respBody" }
-                    return
+                val request = Request.Builder()
+                    .url("$base/assistant")
+                    .addHeader("ngrok-skip-browser-warning", "true")
+                    .post(bodyBuilder.build())
+                    .build()
+
+                client.newCall(request).execute().use { resp ->
+                    val respBody = resp.body?.string() ?: ""
+                    if (!resp.isSuccessful) {
+                        runOnUiThread { answerView.text = "Fehler ${resp.code}: $respBody" }
+                        return
+                    }
+                    val json = JSONObject(respBody)
+                    val answer = json.optString("text", respBody)
+                    val audioB64 = if (json.isNull("audio_base64")) null
+                                   else json.optString("audio_base64", null)
+                    runOnUiThread { answerView.text = answer }
+                    if (audioB64 != null) playAudio(audioB64)
                 }
-                val json = JSONObject(respBody)
-                val answer = json.optString("text", respBody)
-                val audioB64 = if (json.isNull("audio_base64")) null
-                               else json.optString("audio_base64", null)
-                runOnUiThread { answerView.text = answer }
-                if (audioB64 != null) playAudio(audioB64)
+                return  // Erfolg
+            } catch (e: IOException) {
+                // Verbindungsabbruch (z. B. kurzer VPN-Aussetzer). Kurz warten
+                // und mit DERSELBEN request_id erneut versuchen.
+                letzterFehler = e.message ?: "Verbindung unterbrochen"
+                if (versuch < maxVersuche) {
+                    runOnUiThread {
+                        answerView.text = "Verbindung kurz gestört – ich versuche es erneut … ($versuch)"
+                    }
+                    try { Thread.sleep(2500) } catch (_: InterruptedException) {}
+                }
+            } catch (e: Exception) {
+                runOnUiThread { answerView.text = "Fehler: ${e.message}" }
+                return
             }
-        } catch (e: Exception) {
-            runOnUiThread { answerView.text = "Verbindungsfehler: ${e.message}" }
+        }
+        runOnUiThread {
+            answerView.text = "Verbindung ließ sich nicht stabil aufbauen: $letzterFehler"
         }
     }
 
