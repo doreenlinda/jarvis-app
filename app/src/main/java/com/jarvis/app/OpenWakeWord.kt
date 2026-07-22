@@ -55,13 +55,30 @@ class OpenWakeWord(context: Context) {
 
     init {
         val optionen = Interpreter.Options().setNumThreads(1)
-        melModell = Interpreter(ladeModell(context, "melspectrogram.tflite"), optionen)
-        melModell.resizeInput(0, intArrayOf(1, RAW_LEN))
-        melModell.allocateTensors()
-        embeddingModell = Interpreter(ladeModell(context, "embedding_model.tflite"), optionen)
-        embeddingModell.allocateTensors()
-        wakeModell = Interpreter(ladeModell(context, "hey_jarvis_v0.1.tflite"), optionen)
-        wakeModell.allocateTensors()
+        melModell = baue(context, "melspectrogram.tflite", optionen) {
+            it.resizeInput(0, intArrayOf(1, RAW_LEN))
+        }
+        embeddingModell = baue(context, "embedding_model.tflite", optionen)
+        wakeModell = baue(context, "hey_jarvis_v0.1.tflite", optionen)
+    }
+
+    /** Baut einen Interpreter und benennt im Fehlerfall, WELCHES Modell
+     *  gescheitert ist - ohne das ist eine Fehlermeldung vom Handy kaum
+     *  zuzuordnen. */
+    private fun baue(
+        context: Context,
+        name: String,
+        optionen: Interpreter.Options,
+        vorbereiten: (Interpreter) -> Unit = {},
+    ): Interpreter {
+        try {
+            val it = Interpreter(ladeModell(context, name), optionen)
+            vorbereiten(it)
+            it.allocateTensors()
+            return it
+        } catch (t: Throwable) {
+            throw RuntimeException("Modell $name: $t", t)
+        }
     }
 
     /** Laedt ein Modell aus den Assets in einen direkten ByteBuffer -

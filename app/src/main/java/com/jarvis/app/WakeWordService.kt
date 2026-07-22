@@ -65,10 +65,18 @@ class WakeWordService : Service() {
      *  stumm verschluckt werden (Lektion aus dem ersten v0.6-Test:
      *  "kein Piep, Benachrichtigung nie da" war ohne Diagnose nicht
      *  eingrenzbar). */
-    private fun meldeStatus(text: String) {
+    private fun meldeStatus(text: String, ueberschreibeFehler: Boolean = true) {
         try {
-            getSharedPreferences("jarvis", Context.MODE_PRIVATE).edit()
-                .putString("wake_status", text).apply()
+            val prefs = getSharedPreferences("jarvis", Context.MODE_PRIVATE)
+            if (!ueberschreibeFehler) {
+                // Eine FEHLER-Meldung muss stehen bleiben, bis Doreen sie
+                // gelesen hat - "Dienst beendet." darf sie nicht verdraengen
+                // (genau das passierte beim ersten v0.7-Test: die Meldung
+                // "ploppte nur kurz auf").
+                val aktuell = prefs.getString("wake_status", "") ?: ""
+                if (aktuell.startsWith("FEHLER")) return
+            }
+            prefs.edit().putString("wake_status", text).apply()
         } catch (_: Exception) {}
     }
 
@@ -353,7 +361,7 @@ class WakeWordService : Service() {
 
     override fun onDestroy() {
         aktiv = false
-        meldeStatus("Dienst beendet.")
+        meldeStatus("Dienst beendet.", ueberschreibeFehler = false)
         gibMikrofonFrei()
         try { lauschThread?.join(1000) } catch (_: Exception) {}
         lauschThread = null

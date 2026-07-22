@@ -17,8 +17,8 @@ android {
         applicationId = "com.jarvis.app"
         minSdk = 26          // Android 8.0 - deckt Doreens Galaxy locker ab
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.7"
+        versionCode = 8
+        versionName = "0.8"
     }
 
     signingConfigs {
@@ -67,5 +67,9 @@ dependencies {
     // aus - Ersatz fuer Porcupine, dessen kostenloses Konto Picovoice zum
     // 30.06.2026 abgeschafft hat. Kein Konto, kein AccessKey, kein Ton
     // verlaesst das Handy, bis das Weckwort erkannt wurde.
-    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    // 2.16.1 statt 2.14.0: behebt "Didn't find op for builtin opcode ...
+    // version ..."-Faelle (aeltere Runtimes kennen neuere Op-VERSIONEN
+    // nicht - Hauptverdacht beim "FEHLER beim Laden der Erkennung" aus
+    // dem ersten v0.7-Test).
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
 }
