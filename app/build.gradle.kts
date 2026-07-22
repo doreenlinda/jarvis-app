@@ -17,8 +17,8 @@ android {
         applicationId = "com.jarvis.app"
         minSdk = 26          // Android 8.0 - deckt Doreens Galaxy locker ab
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.4"
+        versionCode = 5
+        versionName = "0.5"
     }
 
     signingConfigs {
@@ -63,4 +63,8 @@ dependencies {
     // geht das EXIF sonst verloren und Etiketten/Dokumente kaemen um 90
     // Grad gedreht bei der Vision-Auswertung an.
     implementation("androidx.exifinterface:exifinterface:1.3.7")
+    // Porcupine: On-Device-Weckwort-Erkennung ("Jarvis" ist ein eingebautes
+    // Keyword). Laeuft komplett lokal - kein Ton verlaesst das Handy, bis
+    // das Weckwort erkannt wurde. AccessKey kommt aus der App-Eingabe.
+    implementation("ai.picovoice:porcupine-android:3.0.2")
 }

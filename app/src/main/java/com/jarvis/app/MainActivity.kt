@@ -2,7 +2,9 @@ package com.jarvis.app
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -15,6 +17,7 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
 import okhttp3.MediaType.Companion.toMediaType
@@ -128,6 +131,55 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 answerView.text = "Kamera konnte nicht gestartet werden: ${e.message}"
             }
+        }
+
+        // --- "Hey Jarvis" im Hintergrund: startet/stoppt den Lausch-Dienst.
+        val wakeButton = findViewById<Button>(R.id.wakeButton)
+        val pvField = findViewById<EditText>(R.id.picovoiceKey)
+        pvField.setText(prefs.getString("picovoice", ""))
+
+        fun setzeWakeText() {
+            wakeButton.text = if (prefs.getBoolean("wake_aktiv", false))
+                "🔴 „Hey Jarvis” stoppen" else "🟢 „Hey Jarvis” aktivieren"
+        }
+        setzeWakeText()
+
+        wakeButton.setOnClickListener {
+            if (prefs.getBoolean("wake_aktiv", false)) {
+                stopService(Intent(this, WakeWordService::class.java))
+                prefs.edit().putBoolean("wake_aktiv", false).apply()
+                setzeWakeText()
+                answerView.text = "Hintergrund-Lauschen gestoppt."
+                return@setOnClickListener
+            }
+            val pv = pvField.text.toString().trim()
+            if (!checkFields()) return@setOnClickListener
+            if (pv.isEmpty()) {
+                answerView.text = "Bitte den Picovoice-AccessKey eintragen (für Hey Jarvis)."
+                return@setOnClickListener
+            }
+            prefs.edit().putString("picovoice", pv).apply()
+
+            // Noetige Berechtigungen: Mikrofon + (ab Android 13) Benachrichtigung
+            val fehlend = mutableListOf<String>()
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED
+            ) fehlend += Manifest.permission.RECORD_AUDIO
+            if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) fehlend += Manifest.permission.POST_NOTIFICATIONS
+            if (fehlend.isNotEmpty()) {
+                requestPermissions(fehlend.toTypedArray(), 2)
+                answerView.text = "Bitte die Berechtigungen erlauben und dann erneut aktivieren."
+                return@setOnClickListener
+            }
+
+            ContextCompat.startForegroundService(this, Intent(this, WakeWordService::class.java))
+            prefs.edit().putBoolean("wake_aktiv", true).apply()
+            setzeWakeText()
+            answerView.text = "Jarvis lauscht jetzt im Hintergrund. Sagen Sie „Jarvis”, " +
+                "warten Sie auf den Piep, und sprechen Sie dann Ihre Frage."
         }
     }
 

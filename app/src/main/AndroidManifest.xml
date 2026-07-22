@@ -3,6 +3,11 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Fuer den "Hey Jarvis"-Hintergrunddienst: dauerhafter Dienst mit
+         Mikrofon-Typ (ab Android 14 Pflicht) + sichtbare Benachrichtigung. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -18,6 +23,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Der "Hey Jarvis"-Lausch-Dienst: laeuft dauerhaft im Hintergrund
+             mit Mikrofon, sichtbar ueber eine Benachrichtigung. -->
+        <service
+            android:name=".WakeWordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- Stellt der System-Kamera eine sichere Ziel-Datei fuer das Foto
              bereit (volle Aufloesung statt Mini-Vorschaubild). -->

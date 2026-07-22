@@ -39,6 +39,14 @@
             android:paddingTop="8dp" />
 
         <EditText
+            android:id="@+id/picovoiceKey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Picovoice-AccessKey (nur fuer Hey Jarvis)"
+            android:inputType="text"
+            android:paddingTop="8dp" />
+
+        <EditText
             android:id="@+id/messageText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -69,6 +77,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="📷 Zeigen / Scannen"
+            android:textSize="18sp"
+            android:layout_marginTop="8dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp" />
+
+        <Button
+            android:id="@+id/wakeButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🟢 „Hey Jarvis” aktivieren"
             android:textSize="18sp"
             android:layout_marginTop="8dp"
             android:paddingTop="16dp"
