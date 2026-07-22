@@ -59,6 +59,19 @@ class WakeWordService : Service() {
     private var audioRecord: AudioRecord? = null
     private var engine: OpenWakeWord? = null
 
+    /** Sichtbare Diagnose: Der Dienst meldet seinen Zustand in die
+     *  SharedPreferences, die MainActivity zeigt ihn live an. Auf dem
+     *  Handy gibt es kein lesbares Log - Fehler duerfen deshalb NIE
+     *  stumm verschluckt werden (Lektion aus dem ersten v0.6-Test:
+     *  "kein Piep, Benachrichtigung nie da" war ohne Diagnose nicht
+     *  eingrenzbar). */
+    private fun meldeStatus(text: String) {
+        try {
+            getSharedPreferences("jarvis", Context.MODE_PRIVATE).edit()
+                .putString("wake_status", text).apply()
+        } catch (_: Exception) {}
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
@@ -96,14 +109,17 @@ class WakeWordService : Service() {
 
     private fun starteLauschen() {
         if (aktiv) return
+        meldeStatus("Dienst gestartet, lade Erkennungsmodelle …")
         try {
             engine = OpenWakeWord(applicationContext)
-        } catch (e: Exception) {
-            // Modelle konnten nicht geladen werden - Dienst beendet sich,
-            // die Benachrichtigung verschwindet (sichtbares Signal).
+        } catch (t: Throwable) {
+            // Throwable, nicht nur Exception: ein UnsatisfiedLinkError der
+            // TensorFlow-Lite-Bibliothek waere sonst ein stummer Absturz.
+            meldeStatus("FEHLER beim Laden der Erkennung: $t")
             stopSelf()
             return
         }
+        meldeStatus("Modelle geladen, Lauschen beginnt …")
         aktiv = true
         lauschThread = thread {
             try {
@@ -119,11 +135,15 @@ class WakeWordService : Service() {
                     // Weckwort erkannt: Mikrofon ist freigegeben, dann der
                     // bewaehrte Frage-/Antwort-Ablauf (unveraendert aus der
                     // Porcupine-Zeit).
+                    meldeStatus("Weckwort erkannt – ich höre Ihre Frage …")
                     ton(ToneGenerator.TONE_PROP_BEEP)
                     val frage = nimmFrageAuf()
                     if (frage != null && frage.length() > 0) {
                         ton(ToneGenerator.TONE_PROP_ACK)
+                        meldeStatus("Frage aufgenommen, sende an Jarvis …")
                         frageJarvis(frage)
+                    } else {
+                        meldeStatus("Keine Frage gehört – ich lausche weiter.")
                     }
                     // Puffer leeren, damit die eigene Aufnahme/Stimme keinen
                     // Fehlalarm hinterlaesst; danach lauscht die Schleife weiter.
@@ -155,8 +175,8 @@ class WakeWordService : Service() {
         }
         if (rec == null || rec.state != AudioRecord.STATE_INITIALIZED) {
             try { rec?.release() } catch (_: Exception) {}
-            // Ohne Mikrofon-Berechtigung o. ae. beendet sich der Dienst -
-            // die verschwindende Benachrichtigung ist das sichtbare Signal.
+            // Ohne Mikrofon-Berechtigung o. ae. beendet sich der Dienst.
+            meldeStatus("FEHLER: Mikrofon nicht verfügbar (Berechtigung? Andere App?)")
             aktiv = false
             stopSelf()
             return false
@@ -165,21 +185,37 @@ class WakeWordService : Service() {
         rec.startRecording()
 
         val block = ShortArray(OpenWakeWord.BLOCK_SAMPLES)
+        // Diagnose: hoechster Erkennungswert der letzten ~2,5 Sekunden -
+        // damit ist in der App sichtbar, OB die Erkennung lebt und wie nah
+        // ein gesprochenes "Hey Jarvis" an die Schwelle kommt.
+        var maxScore = 0f
+        var bloecke = 0
         try {
             while (aktiv) {
                 var gelesen = 0
                 while (aktiv && gelesen < block.size) {
                     val n = rec.read(block, gelesen, block.size - gelesen)
-                    if (n <= 0) return false  // Mikrofon weg/gestoppt
+                    if (n <= 0) {
+                        meldeStatus("FEHLER: Mikrofon liefert keine Daten (Code $n) – neuer Versuch in 3 s")
+                        return false
+                    }
                     gelesen += n
                 }
                 if (!aktiv) return false
                 val score = try {
                     eng.verarbeite(block)
-                } catch (e: Exception) {
+                } catch (t: Throwable) {
+                    meldeStatus("FEHLER in der Erkennung: $t")
                     return false
                 }
                 if (score > SCHWELLE) return true
+                maxScore = maxOf(maxScore, score)
+                if (++bloecke >= 32) {  // ~2,5 s
+                    meldeStatus("Lauscht … höchster Erkennungswert zuletzt: " +
+                        String.format("%.2f", maxScore) + " (Schwelle ${SCHWELLE})")
+                    maxScore = 0f
+                    bloecke = 0
+                }
             }
             return false
         } finally {
@@ -317,6 +353,7 @@ class WakeWordService : Service() {
 
     override fun onDestroy() {
         aktiv = false
+        meldeStatus("Dienst beendet.")
         gibMikrofonFrei()
         try { lauschThread?.join(1000) } catch (_: Exception) {}
         lauschThread = null

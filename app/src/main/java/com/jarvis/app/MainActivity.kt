@@ -53,6 +53,26 @@ class MainActivity : AppCompatActivity() {
     private var isRecording = false
     private var player: MediaPlayer? = null
 
+    // Live-Diagnose des "Hey Jarvis"-Dienstes: Der Dienst schreibt seinen
+    // Zustand (laeuft / Erkennungswert / Fehler im Klartext) in die
+    // SharedPreferences, wir zeigen ihn jede Sekunde an. Ohne das waren
+    // Dienst-Fehler auf dem Handy komplett unsichtbar (v0.6-Lektion).
+    private val statusHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var statusView: TextView? = null
+    private val statusRunnable = object : Runnable {
+        override fun run() {
+            val prefs = getSharedPreferences("jarvis", Context.MODE_PRIVATE)
+            if (prefs.getBoolean("wake_aktiv", false)) {
+                val status = prefs.getString("wake_status", "") ?: ""
+                statusView?.text = if (status.isEmpty()) "Hey Jarvis: (noch keine Meldung vom Dienst)"
+                                   else "Hey Jarvis: $status"
+                statusHandler.postDelayed(this, 1000)
+            } else {
+                statusView?.text = ""
+            }
+        }
+    }
+
     private lateinit var urlField: EditText
     private lateinit var keyField: EditText
     private lateinit var textField: EditText
@@ -97,6 +117,7 @@ class MainActivity : AppCompatActivity() {
         textField = findViewById(R.id.messageText)
         answerView = findViewById(R.id.answerView)
         talkButton = findViewById(R.id.talkButton)
+        statusView = findViewById(R.id.wakeStatusView)
         val sendButton = findViewById<Button>(R.id.sendButton)
 
         // URL und Schluessel merken - nur einmal eintippen.
@@ -169,11 +190,15 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            prefs.edit().putString("wake_status", "").apply()
             ContextCompat.startForegroundService(this, Intent(this, WakeWordService::class.java))
             prefs.edit().putBoolean("wake_aktiv", true).apply()
             setzeWakeText()
             answerView.text = "Jarvis lauscht jetzt im Hintergrund. Sagen Sie „Hey Jarvis”, " +
-                "warten Sie auf den Piep, und sprechen Sie dann Ihre Frage."
+                "warten Sie auf den Piep, und sprechen Sie dann Ihre Frage. " +
+                "Der Dienst-Zustand erscheint unter den Knöpfen."
+            statusHandler.removeCallbacks(statusRunnable)
+            statusHandler.post(statusRunnable)
         }
     }
 
@@ -373,8 +398,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        statusHandler.removeCallbacks(statusRunnable)
+        statusHandler.post(statusRunnable)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        statusHandler.removeCallbacks(statusRunnable)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        statusHandler.removeCallbacks(statusRunnable)
         releaseRecorder()
         try { player?.release() } catch (_: Exception) {}
         player = null
