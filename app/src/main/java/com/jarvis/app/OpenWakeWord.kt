@@ -61,9 +61,16 @@ class OpenWakeWord(context: Context) {
         // Modelle sind winzig, normale CPU-Ausfuehrung reicht um
         // Groessenordnungen.
         val optionen = Interpreter.Options().setNumThreads(1).setUseXNNPACK(false)
-        melModell = baue(context, "melspectrogram.tflite", optionen) {
-            it.resizeInput(0, intArrayOf(1, RAW_LEN))
-        }
+        // WICHTIG: Die beiden Feature-Modelle in den Assets sind GEPATCHTE
+        // Fassungen der openWakeWord-Originale - die Eingabeform ist fest
+        // ins Modell geschrieben ([1,1760] bzw. [1,76,32,1]). Die Originale
+        // tragen dynamische Dimensionen (-1), und die Android-Java-Runtime
+        // bereitet das Modell schon im Konstruktor vor (anders als Python):
+        // mit -1 laeuft die Groessenberechnung ueber ("BytesRequired number
+        // of elements overflowed", live auf dem Galaxy, 22.07.2026). Ein
+        // resizeInput() kaeme dafuer zu spaet. Patch-Skript und Verifikation
+        // sind in CLAUDE.md des Orchestrator-Projekts dokumentiert.
+        melModell = baue(context, "melspectrogram.tflite", optionen)
         embeddingModell = baue(context, "embedding_model.tflite", optionen)
         wakeModell = baue(context, "hey_jarvis_v0.1.tflite", optionen)
     }
