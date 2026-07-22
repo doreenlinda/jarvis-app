@@ -54,7 +54,13 @@ class OpenWakeWord(context: Context) {
     private val wakeAus = Array(1) { FloatArray(1) }
 
     init {
-        val optionen = Interpreter.Options().setNumThreads(1)
+        // XNNPACK AUS: Der standardmaessig zugeschaltete Beschleuniger
+        // scheitert an der dynamischen Eingabegroesse des Mel-Modells
+        // ("BytesRequired number of elements overflowed", CONV_2D failed
+        // to prepare - live auf dem Galaxy aufgetreten, 22.07.2026). Die
+        // Modelle sind winzig, normale CPU-Ausfuehrung reicht um
+        // Groessenordnungen.
+        val optionen = Interpreter.Options().setNumThreads(1).setUseXNNPACK(false)
         melModell = baue(context, "melspectrogram.tflite", optionen) {
             it.resizeInput(0, intArrayOf(1, RAW_LEN))
         }
