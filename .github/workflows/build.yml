@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write        # noetig, damit der Job ein Release anlegen darf
     steps:
       - name: Code holen
         uses: actions/checkout@v4
@@ -34,3 +36,22 @@ jobs:
           name: jarvis-app-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      # Die APK unter einem festen "latest"-Release veroeffentlichen, damit
+      # es einen stabilen, direkten Download-Link gibt, der immer die neueste
+      # Version liefert:
+      #   https://github.com/<user>/jarvis-app/releases/latest/download/jarvis.apk
+      - name: APK auf festen Namen kopieren
+        if: github.ref == 'refs/heads/main'
+        run: cp app/build/outputs/apk/debug/app-debug.apk jarvis.apk
+
+      - name: Als "latest"-Release veroeffentlichen
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest -R "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create latest jarvis.apk \
+            -R "${{ github.repository }}" \
+            -t "Jarvis App (neueste Version)" \
+            -n "Automatisch aus dem letzten Stand gebaut."

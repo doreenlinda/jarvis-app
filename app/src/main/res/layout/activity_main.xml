@@ -27,9 +27,8 @@
             android:id="@+id/serverUrl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Server-URL"
-            android:inputType="textUri"
-            android:text="https://audacious-eternity-volley.ngrok-free.dev" />
+            android:hint="Server-URL (z. B. https://...ngrok-free.dev)"
+            android:inputType="textUri" />
 
         <EditText
             android:id="@+id/accessKey"

@@ -1,5 +1,6 @@
 package com.jarvis.app
 
+import android.content.Context
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
@@ -31,6 +32,12 @@ class MainActivity : AppCompatActivity() {
         val sendButton = findViewById<Button>(R.id.sendButton)
         val answerView = findViewById<TextView>(R.id.answerView)
 
+        // URL und Schluessel werden gespeichert, damit Doreen sie nur EINMAL
+        // eintippen muss - beim naechsten Start sind sie schon da.
+        val prefs = getSharedPreferences("jarvis", Context.MODE_PRIVATE)
+        urlField.setText(prefs.getString("url", ""))
+        keyField.setText(prefs.getString("key", ""))
+
         sendButton.setOnClickListener {
             val base = urlField.text.toString().trim().trimEnd('/')
             val key = keyField.text.toString().trim()
@@ -39,6 +46,8 @@ class MainActivity : AppCompatActivity() {
                 answerView.text = "Bitte Server-URL, Schluessel und Nachricht ausfuellen."
                 return@setOnClickListener
             }
+            // Fuer den naechsten Start merken.
+            prefs.edit().putString("url", base).putString("key", key).apply()
             answerView.text = "Sende …"
             // Netzwerk niemals im UI-Thread - sonst friert die App ein.
             thread {
