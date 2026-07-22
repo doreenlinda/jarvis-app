@@ -127,10 +127,11 @@ class WakeWordService : Service() {
             stopSelf()
             return
         }
-        meldeStatus("Modelle geladen, Lauschen beginnt …")
+        meldeStatus("Modelle geladen, starte Selbsttest …")
         aktiv = true
         lauschThread = thread {
             try {
+                selbsttest()
                 while (aktiv) {
                     if (!lauscheBisWeckwort()) {
                         // Mikrofon-Aussetzer (z. B. andere App hatte es kurz):
@@ -160,6 +161,44 @@ class WakeWordService : Service() {
             } finally {
                 gibMikrofonFrei()
             }
+        }
+    }
+
+    /** Ergebnis des Selbsttests - wird in jeder Lauscht-Statuszeile
+     *  mit angezeigt, damit Erkennungs- und Mikrofonprobleme sauber
+     *  auseinanderzuhalten sind. */
+    @Volatile private var selbsttestErgebnis = "-"
+
+    /**
+     * Spielt das eingebaute, am Laptop verifizierte "Hey Jarvis"-Testaudio
+     * OHNE Mikrofon durch die Erkennung. Erwartung ~0,99. Kommt hier ~0
+     * heraus, rechnet die Erkennung auf dem Handy falsch; kommt ~0,99
+     * heraus und der Live-Wert bleibt trotzdem 0, liefert das MIKROFON
+     * keine brauchbaren Daten.
+     */
+    private fun selbsttest() {
+        try {
+            val bytes = assets.open("selftest_hey_jarvis.pcm").use { it.readBytes() }
+            val samples = ShortArray(bytes.size / 2)
+            for (i in samples.indices) {
+                samples[i] = ((bytes[2 * i].toInt() and 0xFF) or
+                              (bytes[2 * i + 1].toInt() shl 8)).toShort()
+            }
+            val eng = engine ?: return
+            var max = 0f
+            val block = ShortArray(OpenWakeWord.BLOCK_SAMPLES)
+            var pos = 0
+            while (pos + block.size <= samples.size) {
+                System.arraycopy(samples, pos, block, 0, block.size)
+                max = maxOf(max, eng.verarbeite(block))
+                pos += block.size
+            }
+            eng.reset()
+            selbsttestErgebnis = String.format("%.2f", max)
+            meldeStatus("Selbsttest: $selbsttestErgebnis (erwartet ~0,99) – Lauschen beginnt …")
+        } catch (t: Throwable) {
+            selbsttestErgebnis = "FEHLER"
+            meldeStatus("FEHLER im Selbsttest: $t")
         }
     }
 
@@ -193,10 +232,11 @@ class WakeWordService : Service() {
         rec.startRecording()
 
         val block = ShortArray(OpenWakeWord.BLOCK_SAMPLES)
-        // Diagnose: hoechster Erkennungswert der letzten ~2,5 Sekunden -
-        // damit ist in der App sichtbar, OB die Erkennung lebt und wie nah
-        // ein gesprochenes "Hey Jarvis" an die Schwelle kommt.
+        // Diagnose: hoechster Erkennungswert UND hoechster Mikrofon-Pegel
+        // der letzten ~2,5 Sekunden - Pegel ~0 beim Sprechen = Mikrofon
+        // liefert Stille; Pegel hoch + Wert 0 = Erkennungsproblem.
         var maxScore = 0f
+        var maxPegel = 0
         var bloecke = 0
         try {
             while (aktiv) {
@@ -218,10 +258,15 @@ class WakeWordService : Service() {
                 }
                 if (score > SCHWELLE) return true
                 maxScore = maxOf(maxScore, score)
+                for (s in block) {
+                    val a = if (s >= 0) s.toInt() else -s.toInt()
+                    if (a > maxPegel) maxPegel = a
+                }
                 if (++bloecke >= 32) {  // ~2,5 s
-                    meldeStatus("Lauscht … höchster Erkennungswert zuletzt: " +
-                        String.format("%.2f", maxScore) + " (Schwelle ${SCHWELLE})")
+                    meldeStatus("Lauscht … Wert " + String.format("%.2f", maxScore) +
+                        " | Mikro-Pegel $maxPegel | Selbsttest $selbsttestErgebnis")
                     maxScore = 0f
+                    maxPegel = 0
                     bloecke = 0
                 }
             }

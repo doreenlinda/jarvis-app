@@ -17,8 +17,8 @@ android {
         applicationId = "com.jarvis.app"
         minSdk = 26          // Android 8.0 - deckt Doreens Galaxy locker ab
         targetSdk = 34
-        versionCode = 10
-        versionName = "0.10"
+        versionCode = 11
+        versionName = "0.11"
     }
 
     signingConfigs {
