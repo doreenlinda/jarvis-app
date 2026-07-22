@@ -27,7 +27,13 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Signatur-Keystore bereitstellen
+        run: echo "${{ secrets.SIGNING_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/jarvis_signing.p12"
+
       - name: Debug-APK bauen
+        env:
+          SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/jarvis_signing.p12
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: APK als Artefakt hochladen

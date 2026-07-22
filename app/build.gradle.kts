@@ -3,6 +3,12 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Fester Signatur-Schluessel: Der Cloud-Build bekommt ihn als GitHub-Secret
+// (Umgebungsvariablen). Damit ist jede APK identisch signiert und Updates
+// laufen OHNE Deinstallieren durch. Fehlen die Variablen (z. B. lokaler
+// Build), wird ganz normal mit dem Standard-Debug-Key signiert.
+val stableKeystorePath: String? = System.getenv("SIGNING_KEYSTORE_PATH")
+
 android {
     namespace = "com.jarvis.app"
     compileSdk = 34
@@ -11,13 +17,30 @@ android {
         applicationId = "com.jarvis.app"
         minSdk = 26          // Android 8.0 - deckt Doreens Galaxy locker ab
         targetSdk = 34
-        versionCode = 3
-        versionName = "0.3"
+        versionCode = 4
+        versionName = "0.4"
+    }
+
+    signingConfigs {
+        create("stable") {
+            if (stableKeystorePath != null) {
+                storeFile = file(stableKeystorePath)
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias = "jarvis"
+                keyPassword = System.getenv("SIGNING_STORE_PASSWORD")
+                storeType = "pkcs12"
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+        }
+        debug {
+            if (stableKeystorePath != null) {
+                signingConfig = signingConfigs.getByName("stable")
+            }
         }
     }
 
@@ -36,4 +59,8 @@ dependencies {
     // OkHttp fuer den multipart-Upload (Audio-Datei + Formfelder an
     // /assistant). Sehr etabliert, keine Versionskonflikte mit AGP 8.5.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Liest die EXIF-Ausrichtung von Kamerafotos - beim Herunterskalieren
+    // geht das EXIF sonst verloren und Etiketten/Dokumente kaemen um 90
+    // Grad gedreht bei der Vision-Auswertung an.
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 }

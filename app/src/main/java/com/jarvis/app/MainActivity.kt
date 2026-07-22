@@ -3,6 +3,9 @@ package com.jarvis.app
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Bundle
@@ -10,7 +13,10 @@ import android.util.Base64
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
+import androidx.exifinterface.media.ExifInterface
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -50,6 +56,35 @@ class MainActivity : AppCompatActivity() {
     private lateinit var answerView: TextView
     private lateinit var talkButton: Button
 
+    // --- Kamera ("Zeigen/Scannen"): System-Kamera macht das Foto in voller
+    // Aufloesung in eine FileProvider-Datei, danach wird es verkleinert und
+    // an Jarvis geschickt. Eine Frage im Nachrichten-Feld geht mit. ---
+    private var fotoRoh: File? = null
+
+    private val takePicture =
+        registerForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+            val roh = fotoRoh
+            if (!ok || roh == null || !roh.exists() || roh.length() == 0L) {
+                answerView.text = "Kein Foto aufgenommen."
+                return@registerForActivityResult
+            }
+            answerView.text = "Foto wird vorbereitet …"
+            val frage = textField.text.toString().trim()
+            thread {
+                val klein = skaliereFoto(roh)
+                if (klein == null) {
+                    runOnUiThread { answerView.text = "Foto konnte nicht verarbeitet werden." }
+                } else {
+                    runOnUiThread { answerView.text = "Sende …" }
+                    requestJarvis(
+                        text = if (frage.isEmpty()) null else frage,
+                        audio = null,
+                        image = klein,
+                    )
+                }
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -80,6 +115,59 @@ class MainActivity : AppCompatActivity() {
             } else {
                 startRecording()
             }
+        }
+
+        findViewById<Button>(R.id.cameraButton).setOnClickListener {
+            if (!checkFields()) return@setOnClickListener
+            try {
+                val f = File(cacheDir, "foto_roh.jpg")
+                if (f.exists()) f.delete()
+                fotoRoh = f
+                val uri = FileProvider.getUriForFile(this, "com.jarvis.app.fileprovider", f)
+                takePicture.launch(uri)
+            } catch (e: Exception) {
+                answerView.text = "Kamera konnte nicht gestartet werden: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Skaliert das Kamerafoto auf maximal ~2000 Pixel Kante (haelt es unter
+     * dem Server-Limit, reicht fuer Kleingedrucktes auf Etiketten) und
+     * wendet die EXIF-Drehung an - sonst kaeme ein hochkant aufgenommenes
+     * Dokument um 90 Grad gedreht bei der Auswertung an.
+     */
+    private fun skaliereFoto(roh: File): File? {
+        return try {
+            val grenzen = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(roh.absolutePath, grenzen)
+            val maxKante = maxOf(grenzen.outWidth, grenzen.outHeight)
+            var sample = 1
+            while (maxKante / sample > 2000) sample *= 2
+            val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+            var bmp = BitmapFactory.decodeFile(roh.absolutePath, opts) ?: return null
+
+            val drehung = when (
+                ExifInterface(roh.absolutePath).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
+                )
+            ) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+            if (drehung != 0f) {
+                val m = Matrix().apply { postRotate(drehung) }
+                bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+            }
+
+            val ziel = File(cacheDir, "foto_klein.jpg")
+            ziel.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+            bmp.recycle()
+            ziel
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -157,7 +245,7 @@ class MainActivity : AppCompatActivity() {
 
     // --- Anfrage an den Server ---------------------------------------------
 
-    private fun requestJarvis(text: String?, audio: File?) {
+    private fun requestJarvis(text: String?, audio: File?, image: File? = null) {
         val base = urlField.text.toString().trim().trimEnd('/')
         val key = keyField.text.toString().trim()
         // Eine Kennung fuer diese Sende-Aktion - bleibt ueber alle Wiederhol-
@@ -175,6 +263,9 @@ class MainActivity : AppCompatActivity() {
                 if (!text.isNullOrEmpty()) bodyBuilder.addFormDataPart("text", text)
                 if (audio != null) bodyBuilder.addFormDataPart(
                     "audio", "aufnahme.m4a", audio.asRequestBody("audio/mp4".toMediaType())
+                )
+                if (image != null) bodyBuilder.addFormDataPart(
+                    "image", "foto.jpg", image.asRequestBody("image/jpeg".toMediaType())
                 )
 
                 val request = Request.Builder()
