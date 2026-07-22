@@ -1,0 +1,36 @@
+name: Build APK
+
+# Baut bei jedem Push auf main eine installierbare Debug-APK und legt sie
+# als Download-Artefakt ab. Manuell ausloesbar ueber "Run workflow".
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code holen
+        uses: actions/checkout@v4
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Debug-APK bauen
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: APK als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-app-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
