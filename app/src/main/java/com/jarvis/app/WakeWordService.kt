@@ -1,7 +1,5 @@
 package com.jarvis.app
 
-import ai.picovoice.porcupine.Porcupine
-import ai.picovoice.porcupine.PorcupineManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,7 +7,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioRecord
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.media.ToneGenerator
@@ -30,21 +30,34 @@ import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
- * Etappe 3: "Hey Jarvis" im Hintergrund.
+ * Etappe 3: "Hey Jarvis" im Hintergrund - seit v0.6 ueber openWakeWord
+ * statt Porcupine (Picovoice hat sein kostenloses Konto zum 30.06.2026
+ * abgeschafft; openWakeWord braucht weder Konto noch AccessKey).
  *
- * Dauerhafter Vordergrund-Dienst (sichtbare Benachrichtigung), der ueber
- * Porcupine lokal auf das Weckwort "Jarvis" lauscht. Kein Ton verlaesst das
- * Handy, bis das Weckwort faellt. Ablauf danach:
+ * Dauerhafter Vordergrund-Dienst (sichtbare Benachrichtigung), der lokal
+ * auf "Hey Jarvis" lauscht. Kein Ton verlaesst das Handy, bis das Weckwort
+ * faellt. Ablauf danach:
  *   Piep -> Frage aufnehmen (Stille-Erkennung, max. 10 s) -> Bestaetigungs-
  *   Piep -> Upload an /assistant (mit Retry/Idempotenz wie in der App) ->
  *   Jarvis' Stimmantwort abspielen -> weiterlauschen.
- * Waehrend Aufnahme und Antwort ist Porcupine PAUSIERT - sonst wuerde
- * Jarvis' eigene Stimme ("...Jarvis...") das Weckwort erneut ausloesen.
+ * Waehrend Aufnahme und Antwort ist das Lauschen PAUSIERT (Mikrofon wird
+ * fuer die Aufnahme gebraucht, und Jarvis' eigene Stimme darf das Weckwort
+ * nicht erneut ausloesen); danach werden die Erkennungs-Puffer geleert.
  */
 class WakeWordService : Service() {
 
-    private var porcupine: PorcupineManager? = null
-    @Volatile private var beschaeftigt = false
+    companion object {
+        private const val SAMPLE_RATE = 16000
+        // Ab diesem Score gilt das Weckwort als erkannt (openWakeWord-
+        // Standard 0,5; hoeher = weniger Fehlalarme, dafuer muss man
+        // deutlicher sprechen).
+        private const val SCHWELLE = 0.5f
+    }
+
+    @Volatile private var aktiv = false
+    private var lauschThread: Thread? = null
+    private var audioRecord: AudioRecord? = null
+    private var engine: OpenWakeWord? = null
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -70,7 +83,7 @@ class WakeWordService : Service() {
         }
         val n: Notification = NotificationCompat.Builder(this, kanalId)
             .setContentTitle("Jarvis lauscht")
-            .setContentText("Sagen Sie „Jarvis“, um zu sprechen.")
+            .setContentText("Sagen Sie „Hey Jarvis“, um zu sprechen.")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setOngoing(true)
             .build()
@@ -82,44 +95,103 @@ class WakeWordService : Service() {
     }
 
     private fun starteLauschen() {
-        if (porcupine != null) return
-        val prefs = getSharedPreferences("jarvis", Context.MODE_PRIVATE)
-        val accessKey = prefs.getString("picovoice", "") ?: ""
-        if (accessKey.isEmpty()) {
+        if (aktiv) return
+        try {
+            engine = OpenWakeWord(applicationContext)
+        } catch (e: Exception) {
+            // Modelle konnten nicht geladen werden - Dienst beendet sich,
+            // die Benachrichtigung verschwindet (sichtbares Signal).
             stopSelf()
             return
         }
-        try {
-            porcupine = PorcupineManager.Builder()
-                .setAccessKey(accessKey)
-                .setKeyword(Porcupine.BuiltInKeyword.JARVIS)
-                .setSensitivity(0.6f)
-                .build(applicationContext) { _ -> aufWeckwort() }
-            porcupine?.start()
-        } catch (e: Exception) {
-            // Falscher/abgelaufener AccessKey o. ae. - Dienst beendet sich,
-            // die Benachrichtigung verschwindet (sichtbares Signal).
-            stopSelf()
+        aktiv = true
+        lauschThread = thread {
+            try {
+                while (aktiv) {
+                    if (!lauscheBisWeckwort()) {
+                        // Mikrofon-Aussetzer (z. B. andere App hatte es kurz):
+                        // kurz warten und erneut versuchen statt still
+                        // aufzugeben, waehrend die Benachrichtigung weiter
+                        // "Jarvis lauscht" behauptet.
+                        if (aktiv) Thread.sleep(3000)
+                        continue
+                    }
+                    // Weckwort erkannt: Mikrofon ist freigegeben, dann der
+                    // bewaehrte Frage-/Antwort-Ablauf (unveraendert aus der
+                    // Porcupine-Zeit).
+                    ton(ToneGenerator.TONE_PROP_BEEP)
+                    val frage = nimmFrageAuf()
+                    if (frage != null && frage.length() > 0) {
+                        ton(ToneGenerator.TONE_PROP_ACK)
+                        frageJarvis(frage)
+                    }
+                    // Puffer leeren, damit die eigene Aufnahme/Stimme keinen
+                    // Fehlalarm hinterlaesst; danach lauscht die Schleife weiter.
+                    engine?.reset()
+                }
+            } finally {
+                gibMikrofonFrei()
+            }
         }
     }
 
-    private fun aufWeckwort() {
-        if (beschaeftigt) return
-        beschaeftigt = true
-        thread {
-            try {
-                try { porcupine?.stop() } catch (_: Exception) {}
-                ton(ToneGenerator.TONE_PROP_BEEP)
-                val frage = nimmFrageAuf()
-                if (frage != null && frage.length() > 0) {
-                    ton(ToneGenerator.TONE_PROP_ACK)
-                    frageJarvis(frage)
-                }
-            } finally {
-                try { porcupine?.start() } catch (_: Exception) {}
-                beschaeftigt = false
-            }
+    /**
+     * Lauscht blockierend, bis das Weckwort faellt (true) oder der Dienst
+     * gestoppt wird bzw. das Mikrofon nicht verfuegbar ist (false).
+     */
+    private fun lauscheBisWeckwort(): Boolean {
+        val eng = engine ?: return false
+        val minPuffer = AudioRecord.getMinBufferSize(
+            SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
+        val rec = try {
+            AudioRecord(
+                MediaRecorder.AudioSource.MIC, SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
+                maxOf(minPuffer, OpenWakeWord.BLOCK_SAMPLES * 2 * 4)
+            )
+        } catch (e: Exception) {
+            null
         }
+        if (rec == null || rec.state != AudioRecord.STATE_INITIALIZED) {
+            try { rec?.release() } catch (_: Exception) {}
+            // Ohne Mikrofon-Berechtigung o. ae. beendet sich der Dienst -
+            // die verschwindende Benachrichtigung ist das sichtbare Signal.
+            aktiv = false
+            stopSelf()
+            return false
+        }
+        audioRecord = rec
+        rec.startRecording()
+
+        val block = ShortArray(OpenWakeWord.BLOCK_SAMPLES)
+        try {
+            while (aktiv) {
+                var gelesen = 0
+                while (aktiv && gelesen < block.size) {
+                    val n = rec.read(block, gelesen, block.size - gelesen)
+                    if (n <= 0) return false  // Mikrofon weg/gestoppt
+                    gelesen += n
+                }
+                if (!aktiv) return false
+                val score = try {
+                    eng.verarbeite(block)
+                } catch (e: Exception) {
+                    return false
+                }
+                if (score > SCHWELLE) return true
+            }
+            return false
+        } finally {
+            gibMikrofonFrei()
+        }
+    }
+
+    private fun gibMikrofonFrei() {
+        val rec = audioRecord ?: return
+        audioRecord = null
+        try { rec.stop() } catch (_: Exception) {}
+        try { rec.release() } catch (_: Exception) {}
     }
 
     /**
@@ -213,7 +285,7 @@ class WakeWordService : Service() {
     }
 
     /** Spielt die Antwort ab und BLOCKIERT bis zum Ende - erst danach wird
-     *  das Lauschen fortgesetzt (sonst hoert Porcupine Jarvis' Stimme). */
+     *  das Lauschen fortgesetzt (sonst hoert die Erkennung Jarvis' Stimme). */
     private fun spieleAntwort(b64: String) {
         try {
             val bytes = Base64.decode(b64, Base64.DEFAULT)
@@ -244,12 +316,12 @@ class WakeWordService : Service() {
     }
 
     override fun onDestroy() {
-        try {
-            porcupine?.stop()
-            porcupine?.delete()
-        } catch (_: Exception) {
-        }
-        porcupine = null
+        aktiv = false
+        gibMikrofonFrei()
+        try { lauschThread?.join(1000) } catch (_: Exception) {}
+        lauschThread = null
+        try { engine?.schliessen() } catch (_: Exception) {}
+        engine = null
         super.onDestroy()
     }
 }

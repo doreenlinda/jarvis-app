@@ -134,9 +134,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         // --- "Hey Jarvis" im Hintergrund: startet/stoppt den Lausch-Dienst.
+        // Seit v0.6 ueber openWakeWord - KEIN Picovoice-AccessKey mehr noetig
+        // (Picovoice hat sein kostenloses Konto zum 30.06.2026 abgeschafft).
         val wakeButton = findViewById<Button>(R.id.wakeButton)
-        val pvField = findViewById<EditText>(R.id.picovoiceKey)
-        pvField.setText(prefs.getString("picovoice", ""))
 
         fun setzeWakeText() {
             wakeButton.text = if (prefs.getBoolean("wake_aktiv", false))
@@ -152,13 +152,7 @@ class MainActivity : AppCompatActivity() {
                 answerView.text = "Hintergrund-Lauschen gestoppt."
                 return@setOnClickListener
             }
-            val pv = pvField.text.toString().trim()
             if (!checkFields()) return@setOnClickListener
-            if (pv.isEmpty()) {
-                answerView.text = "Bitte den Picovoice-AccessKey eintragen (für Hey Jarvis)."
-                return@setOnClickListener
-            }
-            prefs.edit().putString("picovoice", pv).apply()
 
             // Noetige Berechtigungen: Mikrofon + (ab Android 13) Benachrichtigung
             val fehlend = mutableListOf<String>()
@@ -178,7 +172,7 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.startForegroundService(this, Intent(this, WakeWordService::class.java))
             prefs.edit().putBoolean("wake_aktiv", true).apply()
             setzeWakeText()
-            answerView.text = "Jarvis lauscht jetzt im Hintergrund. Sagen Sie „Jarvis”, " +
+            answerView.text = "Jarvis lauscht jetzt im Hintergrund. Sagen Sie „Hey Jarvis”, " +
                 "warten Sie auf den Piep, und sprechen Sie dann Ihre Frage."
         }
     }

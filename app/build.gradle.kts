@@ -17,8 +17,8 @@ android {
         applicationId = "com.jarvis.app"
         minSdk = 26          // Android 8.0 - deckt Doreens Galaxy locker ab
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.5"
+        versionCode = 6
+        versionName = "0.6"
     }
 
     signingConfigs {
@@ -63,8 +63,9 @@ dependencies {
     // geht das EXIF sonst verloren und Etiketten/Dokumente kaemen um 90
     // Grad gedreht bei der Vision-Auswertung an.
     implementation("androidx.exifinterface:exifinterface:1.3.7")
-    // Porcupine: On-Device-Weckwort-Erkennung ("Jarvis" ist ein eingebautes
-    // Keyword). Laeuft komplett lokal - kein Ton verlaesst das Handy, bis
-    // das Weckwort erkannt wurde. AccessKey kommt aus der App-Eingabe.
-    implementation("ai.picovoice:porcupine-android:3.0.2")
+    // TensorFlow Lite: fuehrt die openWakeWord-Modelle ("Hey Jarvis") lokal
+    // aus - Ersatz fuer Porcupine, dessen kostenloses Konto Picovoice zum
+    // 30.06.2026 abgeschafft hat. Kein Konto, kein AccessKey, kein Ton
+    // verlaesst das Handy, bis das Weckwort erkannt wurde.
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
 }
