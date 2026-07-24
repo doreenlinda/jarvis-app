@@ -333,8 +333,25 @@ class WakeWordService : Service() {
         val base = (prefs.getString("url", "") ?: "").trim().trimEnd('/')
         val key = prefs.getString("key", "") ?: ""
         if (base.isEmpty() || key.isEmpty()) return
-        val requestId = UUID.randomUUID().toString()
 
+        // Satzweise Antwort (siehe StreamClient): Jarvis spricht los, sobald
+        // der erste Satz steht. blockiereBisGesprochen=true, weil erst NACH
+        // der Antwort weitergelauscht werden darf – sonst wuerde seine eigene
+        // Stimme das Weckwort ausloesen. Klappt der Strom nicht, laeuft
+        // unten der bewaehrte /assistant-Weg.
+        meldeStatus("Frage gesendet – Antwort läuft …")
+        try {
+            val gestreamt = StreamClient.ask(
+                client = client, base = base, key = key,
+                text = null, audio = audio, cacheDir = cacheDir,
+                blockiereBisGesprochen = true,
+            )
+            if (gestreamt) return
+        } catch (t: Throwable) {
+            meldeStatus("Stream fehlgeschlagen, versuche klassisch …")
+        }
+
+        val requestId = UUID.randomUUID().toString()
         for (versuch in 1..3) {
             try {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM)

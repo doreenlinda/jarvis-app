@@ -319,6 +319,23 @@ class MainActivity : AppCompatActivity() {
     private fun requestJarvis(text: String?, audio: File?, image: File? = null) {
         val base = urlField.text.toString().trim().trimEnd('/')
         val key = keyField.text.toString().trim()
+
+        // Satzweise Antwort: Jarvis faengt an zu sprechen, sobald der erste
+        // Satz steht, statt die komplette Antwort abzuwarten (server-seitig
+        // ~4,9 s statt ~9,2 s bis zum ersten Ton). Fotos gehen bewusst weiter
+        // den klassischen Weg (Vision streamt nicht sinnvoll). Kommt kein
+        // einziger Block an, faellt es unten auf /assistant zurueck – die
+        // Antwort kann also nie ganz ausbleiben.
+        if (image == null) {
+            val gestreamt = StreamClient.ask(
+                client = client, base = base, key = key,
+                text = text, audio = audio, cacheDir = cacheDir,
+                blockiereBisGesprochen = false,
+                onText = { laufend -> runOnUiThread { answerView.text = laufend } },
+            )
+            if (gestreamt) return
+            runOnUiThread { answerView.text = "Sende … (klassisch)" }
+        }
         // Eine Kennung fuer diese Sende-Aktion - bleibt ueber alle Wiederhol-
         // Versuche GLEICH, damit der Server bei einem Retry die schon fertige
         // Antwort zurueckgibt statt neu zu verarbeiten (Idempotenz).
