@@ -114,6 +114,7 @@ object StreamClient {
         audio: File?,
         cacheDir: File,
         blockiereBisGesprochen: Boolean,
+        image: File? = null,
         onTranscript: (String) -> Unit = {},
         onText: (String) -> Unit = {},
     ): Boolean {
@@ -124,6 +125,13 @@ object StreamClient {
         if (!text.isNullOrEmpty()) body.addFormDataPart("text", text)
         if (audio != null) body.addFormDataPart(
             "audio", "aufnahme.m4a", audio.asRequestBody("audio/mp4".toMediaType())
+        )
+        // Ein Foto laeuft serverseitig NICHT als Wort-fuer-Wort-Strom (Vision
+        // braucht die komplette Auswertung inkl. Werkzeugen), aber die
+        // fertige Antwort wird blockweise vertont – der Ton startet dadurch
+        // deutlich frueher als bei der Vertonung des ganzen Textes.
+        if (image != null) body.addFormDataPart(
+            "image", "foto.jpg", image.asRequestBody("image/jpeg".toMediaType())
         )
 
         val request = Request.Builder()

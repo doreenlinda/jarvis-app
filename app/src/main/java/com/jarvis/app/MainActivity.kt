@@ -322,15 +322,17 @@ class MainActivity : AppCompatActivity() {
 
         // Satzweise Antwort: Jarvis faengt an zu sprechen, sobald der erste
         // Satz steht, statt die komplette Antwort abzuwarten (server-seitig
-        // ~4,9 s statt ~9,2 s bis zum ersten Ton). Fotos gehen bewusst weiter
-        // den klassischen Weg (Vision streamt nicht sinnvoll). Kommt kein
-        // einziger Block an, faellt es unten auf /assistant zurueck – die
-        // Antwort kann also nie ganz ausbleiben.
-        if (image == null) {
+        // ~4,9 s statt ~9,2 s bis zum ersten Ton). Auch Fotos laufen hier
+        // durch: deren Auswertung selbst streamt zwar nicht (Vision braucht
+        // die komplette Antwort inkl. Werkzeugen), aber die Vertonung erfolgt
+        // blockweise – bei langen Bildbeschreibungen mehrere Sekunden frueher.
+        // Kommt kein einziger Block an, faellt es unten auf /assistant
+        // zurueck – die Antwort kann also nie ganz ausbleiben.
+        run {
             val gestreamt = StreamClient.ask(
                 client = client, base = base, key = key,
                 text = text, audio = audio, cacheDir = cacheDir,
-                blockiereBisGesprochen = false,
+                blockiereBisGesprochen = false, image = image,
                 onText = { laufend -> runOnUiThread { answerView.text = laufend } },
             )
             if (gestreamt) return
