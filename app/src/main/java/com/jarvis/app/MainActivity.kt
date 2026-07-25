@@ -64,8 +64,20 @@ class MainActivity : AppCompatActivity() {
             val prefs = getSharedPreferences("jarvis", Context.MODE_PRIVATE)
             if (prefs.getBoolean("wake_aktiv", false)) {
                 val status = prefs.getString("wake_status", "") ?: ""
-                statusView?.text = if (status.isEmpty()) "Hey Jarvis: (noch keine Meldung vom Dienst)"
-                                   else "Hey Jarvis: $status"
+                // Lebenszeichen pruefen: Der Dienst meldet sich beim Lauschen
+                // etwa alle 2,5 s. Bleibt das laenger aus, LÄUFT ER NICHT –
+                // dann darf hier nicht die alte Meldung stehen bleiben und
+                // Betrieb vortäuschen (genau dieser Trugschluss kostete am
+                // 25.07.2026 Zeit: Knopf auf "aktiv", aber nichts lauschte).
+                val letztes = prefs.getLong("wake_heartbeat", 0L)
+                val alter = System.currentTimeMillis() - letztes
+                statusView?.text = when {
+                    letztes > 0L && alter > 30_000 ->
+                        "Hey Jarvis: DIENST LÄUFT NICHT (keine Rückmeldung seit " +
+                        "${alter / 1000} s) – einmal stoppen und neu aktivieren."
+                    status.isEmpty() -> "Hey Jarvis: (noch keine Meldung vom Dienst)"
+                    else -> "Hey Jarvis: $status"
+                }
                 statusHandler.postDelayed(this, 1000)
             } else {
                 statusView?.text = ""
@@ -419,6 +431,23 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // SELBSTHEILUNG: Ein App-Update oder ein Neustart des Handys beendet
+        // laufende Hintergrunddienste – der Schalter stand danach weiter auf
+        // "aktiv", aber es lauschte nichts mehr (genau so am 25.07.2026
+        // passiert: "Hey Jarvis" blieb stumm, beim Server kam gar keine
+        // Anfrage an). Ist das Lauschen eingeschaltet, wird der Dienst beim
+        // Öffnen der App daher vorsorglich neu gestartet. Läuft er bereits,
+        // ist das ein No-Op (WakeWordService.starteLauschen steigt bei
+        // aktivem Dienst sofort wieder aus).
+        val prefs = getSharedPreferences("jarvis", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("wake_aktiv", false)) {
+            try {
+                ContextCompat.startForegroundService(
+                    this, Intent(this, WakeWordService::class.java)
+                )
+            } catch (_: Exception) {
+            }
+        }
         statusHandler.removeCallbacks(statusRunnable)
         statusHandler.post(statusRunnable)
     }

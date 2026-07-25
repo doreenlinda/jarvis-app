@@ -74,9 +74,22 @@ class WakeWordService : Service() {
                 // (genau das passierte beim ersten v0.7-Test: die Meldung
                 // "ploppte nur kurz auf").
                 val aktuell = prefs.getString("wake_status", "") ?: ""
-                if (aktuell.startsWith("FEHLER")) return
+                if (aktuell.startsWith("FEHLER")) {
+                    // Trotzdem ein Lebenszeichen setzen, sonst sieht ein
+                    // laufender Dienst nach dem Fehlerfall "tot" aus.
+                    prefs.edit().putLong("wake_heartbeat", System.currentTimeMillis()).apply()
+                    return
+                }
             }
-            prefs.edit().putString("wake_status", text).apply()
+            prefs.edit()
+                .putString("wake_status", text)
+                // LEBENSZEICHEN: Ohne Zeitstempel zeigte die App weiter die
+                // letzte Meldung an, auch wenn der Dienst laengst beendet war
+                // (ein App-Update beendet ihn stillschweigend, 25.07.2026) –
+                // es sah dann so aus, als lausche er noch. Die MainActivity
+                // erkennt daran, ob der Dienst wirklich lebt.
+                .putLong("wake_heartbeat", System.currentTimeMillis())
+                .apply()
         } catch (_: Exception) {}
     }
 

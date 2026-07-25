@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Damit das Lauschen einen Handy-Neustart ueberlebt (siehe
+         NeustartEmpfaenger). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -30,6 +33,18 @@
             android:name=".WakeWordService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <!-- Faehrt das "Hey Jarvis"-Lauschen nach Handy-Neustart und nach
+             einem App-Update von selbst wieder hoch. Ein App-Update beendete
+             den Dienst bisher stillschweigend. -->
+        <receiver
+            android:name=".NeustartEmpfaenger"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Stellt der System-Kamera eine sichere Ziel-Datei fuer das Foto
              bereit (volle Aufloesung statt Mini-Vorschaubild). -->
