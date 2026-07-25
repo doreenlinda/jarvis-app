@@ -56,6 +56,7 @@ class WakeWordService : Service() {
 
     @Volatile private var aktiv = false
     private var lauschThread: Thread? = null
+    private var herzschlagThread: Thread? = null
     private var audioRecord: AudioRecord? = null
     private var engine: OpenWakeWord? = null
 
@@ -91,6 +92,35 @@ class WakeWordService : Service() {
                 .putLong("wake_heartbeat", System.currentTimeMillis())
                 .apply()
         } catch (_: Exception) {}
+    }
+
+    /**
+     * Schreibt regelmaessig ein Lebenszeichen – UNABHAENGIG davon, was der
+     * Dienst gerade tut.
+     *
+     * Wichtig: Frueher kam das Lebenszeichen nur aus der Lausch-Schleife
+     * (alle ~2,5 s). Waehrend einer Frage-Antwort-Runde lauscht der Dienst
+     * aber NICHT (aufnehmen, senden, Antwort abspielen dauert leicht
+     * ueber 30 s) – die App meldete dann faelschlich "DIENST LAEUFT NICHT",
+     * obwohl gerade alles korrekt lief (Doreen, 25.07.2026). Der Herzschlag
+     * bedeutet daher "der Dienst lebt", nicht "er lauscht gerade".
+     */
+    private fun starteHerzschlag() {
+        if (herzschlagThread != null) return
+        herzschlagThread = thread {
+            while (aktiv) {
+                try {
+                    getSharedPreferences("jarvis", Context.MODE_PRIVATE).edit()
+                        .putLong("wake_heartbeat", System.currentTimeMillis())
+                        .apply()
+                    Thread.sleep(5000)
+                } catch (_: InterruptedException) {
+                    return@thread
+                } catch (_: Exception) {
+                    // Nicht kritisch – naechster Durchlauf versucht es erneut.
+                }
+            }
+        }
     }
 
     private val client = OkHttpClient.Builder()
@@ -142,6 +172,7 @@ class WakeWordService : Service() {
         }
         meldeStatus("Modelle geladen, starte Selbsttest …")
         aktiv = true
+        starteHerzschlag()
         lauschThread = thread {
             try {
                 selbsttest()
@@ -440,6 +471,8 @@ class WakeWordService : Service() {
         gibMikrofonFrei()
         try { lauschThread?.join(1000) } catch (_: Exception) {}
         lauschThread = null
+        try { herzschlagThread?.interrupt() } catch (_: Exception) {}
+        herzschlagThread = null
         try { engine?.schliessen() } catch (_: Exception) {}
         engine = null
         super.onDestroy()

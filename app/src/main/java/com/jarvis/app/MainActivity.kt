@@ -71,8 +71,13 @@ class MainActivity : AppCompatActivity() {
                 // 25.07.2026 Zeit: Knopf auf "aktiv", aber nichts lauschte).
                 val letztes = prefs.getLong("wake_heartbeat", 0L)
                 val alter = System.currentTimeMillis() - letztes
+                // 60 s Toleranz: Der Dienst meldet sich alle 5 s. Grosszuegig
+                // gewaehlt, damit eine kurz angehaltene Hintergrund-Aktivitaet
+                // (Handy im Tiefschlaf, gerade aufgeweckt) keinen Fehlalarm
+                // ausloest – ein wirklich beendeter Dienst faellt trotzdem
+                // binnen einer Minute auf.
                 statusView?.text = when {
-                    letztes > 0L && alter > 30_000 ->
+                    letztes > 0L && alter > 60_000 ->
                         "Hey Jarvis: DIENST LÄUFT NICHT (keine Rückmeldung seit " +
                         "${alter / 1000} s) – einmal stoppen und neu aktivieren."
                     status.isEmpty() -> "Hey Jarvis: (noch keine Meldung vom Dienst)"

@@ -17,8 +17,8 @@ android {
         applicationId = "com.jarvis.app"
         minSdk = 26          // Android 8.0 - deckt Doreens Galaxy locker ab
         targetSdk = 34
-        versionCode = 14
-        versionName = "0.14"
+        versionCode = 15
+        versionName = "0.15"
     }
 
     signingConfigs {
@@ -73,4 +73,5 @@ dependencies {
     // dem ersten v0.7-Test).
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
 }
+
 
