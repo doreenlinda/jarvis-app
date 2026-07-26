@@ -11,6 +11,10 @@
     <!-- Damit das Lauschen einen Handy-Neustart ueberlebt (siehe
          NeustartEmpfaenger). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Rueckmeldung per Vibration statt Ton: Doreens Handy ist dauerhaft
+         stumm, damit bleiben auch Pieps ueber den Medienkanal unhoerbar.
+         Normale Berechtigung, keine Nachfrage beim Nutzer noetig. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"

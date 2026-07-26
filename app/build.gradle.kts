@@ -17,8 +17,14 @@ android {
         applicationId = "com.jarvis.app"
         minSdk = 26          // Android 8.0 - deckt Doreens Galaxy locker ab
         targetSdk = 34
-        versionCode = 16
-        versionName = "0.16"
+        versionCode = 17
+        versionName = "0.17"
+    }
+
+    // Ab AGP 8 wird BuildConfig nicht mehr automatisch erzeugt. Wir brauchen
+    // es, um die Versionsnummer in der Statuszeile anzuzeigen.
+    buildFeatures {
+        buildConfig = true
     }
 
     signingConfigs {

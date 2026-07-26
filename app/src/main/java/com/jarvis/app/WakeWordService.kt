@@ -15,6 +15,9 @@ import android.media.MediaRecorder
 import android.media.ToneGenerator
 import android.os.Build
 import android.os.IBinder
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Base64
 import androidx.core.app.NotificationCompat
 import okhttp3.MediaType.Companion.toMediaType
@@ -478,17 +481,38 @@ class WakeWordService : Service() {
         }
     }
 
+    /**
+     * Rueckmeldung an Doreen, dass der Zuruf angekommen ist - per VIBRATION,
+     * nicht per Ton.
+     *
+     * Weg dahin: Urspruenglich lief der Piep ueber STREAM_NOTIFICATION und war
+     * unhoerbar, weil ihr Handy dauerhaft stumm ist. Am 26.07.2026 auf
+     * STREAM_MUSIC umgestellt - ihr Befund danach: "den Piep hoere ich nur,
+     * wenn der Ton an ist". Stimmt, der Medienkanal ist bei stummem Geraet
+     * ebenfalls still. Vibration ist die einzige Rueckmeldung, die bei einem
+     * dauerhaft stummen Handy zuverlaessig ankommt.
+     *
+     * Die beiden Signale bleiben unterscheidbar: Das Weckwort bestaetigt EIN
+     * laengerer Impuls, die fertige Aufnahme ZWEI kurze.
+     */
     private fun ton(art: Int) {
         try {
-            // MEDIEN-Kanal, nicht Benachrichtigungs-Kanal: Doreens Handy ist
-            // dauerhaft stumm geschaltet, dadurch waren die Pieps ueber
-            // STREAM_NOTIFICATION unhoerbar - man wusste nie, ob der Zuruf
-            // angekommen ist. Ueber STREAM_MUSIC laufen sie denselben Weg wie
-            // Jarvis' Stimmantwort, die sie ja auch hoert.
-            val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
-            tg.startTone(art, 150)
-            Thread.sleep(220)
-            tg.release()
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager)
+                    .defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
+            val muster = if (art == ToneGenerator.TONE_PROP_ACK) {
+                // Aufnahme fertig, geht raus: zwei kurze Impulse.
+                longArrayOf(0, 60, 90, 60)
+            } else {
+                // Weckwort erkannt, ich hoere zu: ein laengerer Impuls.
+                longArrayOf(0, 160)
+            }
+            vibrator.vibrate(VibrationEffect.createWaveform(muster, -1))
+            Thread.sleep(muster.sum() + 80)
         } catch (_: Exception) {
         }
     }

@@ -76,12 +76,16 @@ class MainActivity : AppCompatActivity() {
                 // (Handy im Tiefschlaf, gerade aufgeweckt) keinen Fehlalarm
                 // ausloest – ein wirklich beendeter Dienst faellt trotzdem
                 // binnen einer Minute auf.
+                // Version mit anzeigen: Nach einem Sideload-Update war bisher
+                // nicht erkennbar, ob die neue Fassung wirklich laeuft - man
+                // musste in die Android-Einstellungen (Doreen, 26.07.2026).
+                val version = "v" + BuildConfig.VERSION_NAME
                 statusView?.text = when {
                     letztes > 0L && alter > 60_000 ->
-                        "Hey Jarvis: DIENST LÄUFT NICHT (keine Rückmeldung seit " +
+                        "Hey Jarvis ($version): DIENST LÄUFT NICHT (keine Rückmeldung seit " +
                         "${alter / 1000} s) – einmal stoppen und neu aktivieren."
-                    status.isEmpty() -> "Hey Jarvis: (noch keine Meldung vom Dienst)"
-                    else -> "Hey Jarvis: $status"
+                    status.isEmpty() -> "Hey Jarvis ($version): (noch keine Meldung vom Dienst)"
+                    else -> "Hey Jarvis ($version): $status"
                 }
                 statusHandler.postDelayed(this, 1000)
             } else {
