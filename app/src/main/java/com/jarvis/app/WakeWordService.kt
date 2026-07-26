@@ -51,7 +51,21 @@ class WakeWordService : Service() {
         // Ab diesem Score gilt das Weckwort als erkannt (openWakeWord-
         // Standard 0,5; hoeher = weniger Fehlalarme, dafuer muss man
         // deutlicher sprechen).
-        private const val SCHWELLE = 0.5f
+        // Am 26.07.2026 von 0,5 auf 0,65 angehoben: An diesem Tag loeste das
+        // Weckwort NEUNMAL aus, waehrend Doreen sich mit anderen Menschen
+        // unterhielt - Jarvis nahm Gespraechsfetzen auf und antwortete darauf
+        // ("Wenn du vertretest, hast du ja also deinem Friseur"). Alle neun
+        // Faelle sind im Transkript des Orchestrators belegt.
+        private const val SCHWELLE = 0.65f
+        // Zusaetzlich muss der Wert in MEHREREN AUFEINANDERFOLGENDEN Bloecken
+        // ueber der Schwelle liegen. Ein einzelner Ausschlag reicht nicht -
+        // genau so sehen Fehlalarme aus (ein Laut im Gespraech trifft zufaellig
+        // das Muster). Ein echtes "Hey Jarvis" haelt den Wert dagegen ueber
+        // mehrere Bloecke hoch: Die Laptop-Verifikation vor der Kotlin-
+        // Portierung zeigte 0,999 durchgehend, nicht als einzelne Spitze.
+        // Ein Block sind 80 ms, zwei Bloecke also 160 ms - fuer den Zuruf
+        // unmerklich, fuer einen Zufallstreffer eine hohe Huerde.
+        private const val BESTAETIGUNGEN = 2
     }
 
     @Volatile private var aktiv = false
@@ -282,6 +296,8 @@ class WakeWordService : Service() {
         var maxScore = 0f
         var maxPegel = 0
         var bloecke = 0
+        // Zaehlt, wie viele Bloecke IN FOLGE ueber der Schwelle lagen.
+        var ueberSchwelle = 0
         try {
             while (aktiv) {
                 var gelesen = 0
@@ -300,7 +316,14 @@ class WakeWordService : Service() {
                     meldeStatus("FEHLER in der Erkennung: $t")
                     return false
                 }
-                if (score > SCHWELLE) return true
+                if (score > SCHWELLE) {
+                    // Erst nach BESTAETIGUNGEN Bloecken in Folge gilt das
+                    // Weckwort als gesprochen. Ein einzelner Ausschlag im
+                    // Raumgespraech laeuft hier ins Leere.
+                    if (++ueberSchwelle >= BESTAETIGUNGEN) return true
+                } else {
+                    ueberSchwelle = 0
+                }
                 maxScore = maxOf(maxScore, score)
                 for (s in block) {
                     val a = if (s >= 0) s.toInt() else -s.toInt()
@@ -457,7 +480,12 @@ class WakeWordService : Service() {
 
     private fun ton(art: Int) {
         try {
-            val tg = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+            // MEDIEN-Kanal, nicht Benachrichtigungs-Kanal: Doreens Handy ist
+            // dauerhaft stumm geschaltet, dadurch waren die Pieps ueber
+            // STREAM_NOTIFICATION unhoerbar - man wusste nie, ob der Zuruf
+            // angekommen ist. Ueber STREAM_MUSIC laufen sie denselben Weg wie
+            // Jarvis' Stimmantwort, die sie ja auch hoert.
+            val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
             tg.startTone(art, 150)
             Thread.sleep(220)
             tg.release()
