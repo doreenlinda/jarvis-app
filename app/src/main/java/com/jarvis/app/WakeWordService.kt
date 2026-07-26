@@ -69,6 +69,9 @@ class WakeWordService : Service() {
         // Ein Block sind 80 ms, zwei Bloecke also 160 ms - fuer den Zuruf
         // unmerklich, fuer einen Zufallstreffer eine hohe Huerde.
         private const val BESTAETIGUNGEN = 2
+        // Spuerbare Rueckmeldung beim Zuruf (Vibration). Auf false gesetzt,
+        // siehe Begruendung an ton().
+        private const val RUECKMELDUNG = false
     }
 
     @Volatile private var aktiv = false
@@ -496,6 +499,14 @@ class WakeWordService : Service() {
      * laengerer Impuls, die fertige Aufnahme ZWEI kurze.
      */
     private fun ton(art: Int) {
+        // AUS auf Doreens Wunsch (26.07.2026): "Der Piep ist insgesamt eher
+        // irritierend, das war vorher besser." Sie will gar keine
+        // Rueckmeldung - sie merkt am Sprechen, dass er zuhoert.
+        // Bewusster Preis: Ohne den ersten Impuls ist nicht erkennbar, AB WANN
+        // aufgenommen wird. Faellt ihr das auf, reicht RUECKMELDUNG = true und
+        // ein Weglassen des ACK-Zweigs - dann kommt nur das Weckwort-Signal
+        // zurueck. Deshalb bleibt der Code samt VIBRATE-Berechtigung stehen.
+        if (!RUECKMELDUNG) return
         try {
             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager)
