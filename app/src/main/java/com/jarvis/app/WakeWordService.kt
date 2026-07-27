@@ -99,7 +99,20 @@ class WakeWordService : Service() {
         // Nach so viel Stille IN FOLGE endet die Aufnahme (nur, wenn vorher
         // ueberhaupt gesprochen wurde), Obergrenze darunter.
         private const val STILLE_ENDE_MS = 1300
-        private const val AUFNAHME_MAX_MS = 10_000
+        // Obergrenze der Aufnahme. Am 27.07.2026 von 10 s auf 30 s erhoeht:
+        // Doreens Zuruf "Lege einen neuen Ordner in Gmail an, DEKRA, und
+        // verschiebe die beiden E-Mails im Posteingang in den ..." brach
+        // mitten im Satz ab. Nicht wegen einer Sprechpause - im Log stand
+        // eine Aufnahmedauer von exakt 11,000 s (1 s Vorlauf + 10 s Deckel),
+        // dreimal an diesem Nachmittag. Ihre Saetze sind laenger geworden,
+        // seit Jarvis mehrstufige Auftraege annimmt.
+        // Die Stille-Erkennung beendet die Aufnahme ohnehin 1,3 s nach dem
+        // letzten Wort; dieser Deckel greift nur, wenn wirklich
+        // durchgesprochen wird. Ein Fehlalarm im Raumgespraech kostet damit
+        // im schlimmsten Fall 30 s Aufnahme statt 10 - vertretbar, seit
+        // Schwelle 0,65 und zwei Bestaetigungsbloecke die Fehlalarme
+        // praktisch abgestellt haben.
+        private const val AUFNAHME_MAX_MS = 30_000
     }
 
     @Volatile private var aktiv = false
