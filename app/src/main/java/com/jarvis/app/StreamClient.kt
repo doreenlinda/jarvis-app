@@ -123,9 +123,18 @@ object StreamClient {
             .addFormDataPart("key", key)
             .addFormDataPart("request_id", requestId)
         if (!text.isNullOrEmpty()) body.addFormDataPart("text", text)
-        if (audio != null) body.addFormDataPart(
-            "audio", "aufnahme.m4a", audio.asRequestBody("audio/mp4".toMediaType())
-        )
+        // Dateiname/Typ folgen der ENDUNG: Der Sprechen-Knopf liefert .m4a
+        // (MediaRecorder), der Weckwort-Dienst seit v0.19 .wav (direkt aus
+        // dem Mikrofonstrom). Der Server leitet das Format aus dem Namen ab -
+        // ein fest verdrahtetes ".m4a" wuerde die WAV-Datei falsch benennen.
+        if (audio != null) {
+            val wav = audio.name.endsWith(".wav", ignoreCase = true)
+            body.addFormDataPart(
+                "audio",
+                if (wav) "aufnahme.wav" else "aufnahme.m4a",
+                audio.asRequestBody((if (wav) "audio/wav" else "audio/mp4").toMediaType())
+            )
+        }
         // Ein Foto laeuft serverseitig NICHT als Wort-fuer-Wort-Strom (Vision
         // braucht die komplette Auswertung inkl. Werkzeugen), aber die
         // fertige Antwort wird blockweise vertont – der Ton startet dadurch

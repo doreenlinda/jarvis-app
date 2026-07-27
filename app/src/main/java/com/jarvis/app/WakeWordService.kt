@@ -72,6 +72,34 @@ class WakeWordService : Service() {
         // Spuerbare Rueckmeldung beim Zuruf (Vibration). Auf false gesetzt,
         // siehe Begruendung an ton().
         private const val RUECKMELDUNG = false
+        // VORLAUF (v0.19): So viel Ton VOR dem Weckwort-Treffer wird der
+        // Aufnahme vorangestellt - 1,0 s bei 16 kHz.
+        //
+        // Grund: Bis v0.18 wurde nach dem Weckwort das Mikrofon FREIGEGEBEN
+        // und ein zweiter Rekorder (MediaRecorder) neu aufgebaut. Dieser
+        // Wechsel dauert auf dem Galaxy ein halbe bis eine ganze Sekunde, und
+        // in dieser Zeit wurde nichts aufgezeichnet - Doreens Satzanfang fiel
+        // heraus. Belegt im Transkript vom 27.07.2026: "Wann haben wir den
+        // Termin mit Bettina?" kam als "Wir haben den Termin mit Bettina." an,
+        // "Was ist mit dem EU-AI-Akt?" als "Mit dem EU-AI-Akt." Die Folge war
+        // nicht nur ein fehlendes Wort: Der Router stuft das Bruchstueck als
+        // "keine Quelle" ein, Jarvis bekommt also gar keine Kalenderdaten und
+        // MUSS zurueckfragen. Solange es den Piep gab, hat sie unbewusst
+        // darauf gewartet; seit dem Abschalten (v0.18) faellt es voll durch.
+        //
+        // Seit v0.19 wird die Frage aus DEMSELBEN, weiterlaufenden Strom
+        // aufgenommen (kein Rekorderwechsel, keine Luecke), und der Vorlauf
+        // deckt zusaetzlich ab, dass "Hey Jarvis" und die Frage in einem Zug
+        // gesprochen werden. Der Vorlauf enthaelt dabei das Weckwort selbst -
+        // das entfernt der Server aus dem Transkript.
+        private const val VORLAUF_SAMPLES = SAMPLE_RATE  // 1,0 s
+        // Ab diesem Ausschlag gilt ein Block als "gesprochen" (Skala 0..32767,
+        // derselbe Wert wie zuvor bei MediaRecorder.maxAmplitude).
+        private const val SPRACH_PEGEL = 1500
+        // Nach so viel Stille IN FOLGE endet die Aufnahme (nur, wenn vorher
+        // ueberhaupt gesprochen wurde), Obergrenze darunter.
+        private const val STILLE_ENDE_MS = 1300
+        private const val AUFNAHME_MAX_MS = 10_000
     }
 
     @Volatile private var aktiv = false
@@ -79,6 +107,38 @@ class WakeWordService : Service() {
     private var herzschlagThread: Thread? = null
     private var audioRecord: AudioRecord? = null
     private var engine: OpenWakeWord? = null
+
+    /** Ringpuffer der zuletzt gehoerten Sekunde (siehe VORLAUF_SAMPLES).
+     *  Laeuft waehrend des Lauschens dauerhaft mit und wird beim Weckwort
+     *  der Aufnahme vorangestellt. Verlaesst das Handy nur dann - beim
+     *  blossen Lauschen wird er fortlaufend ueberschrieben. */
+    private val vorlauf = ShortArray(VORLAUF_SAMPLES)
+    private var vorlaufPos = 0
+    private var vorlaufGefuellt = 0
+
+    private fun vorlaufLeeren() {
+        vorlaufPos = 0
+        vorlaufGefuellt = 0
+    }
+
+    private fun vorlaufSchreiben(block: ShortArray) {
+        for (s in block) {
+            vorlauf[vorlaufPos] = s
+            vorlaufPos = (vorlaufPos + 1) % vorlauf.size
+            if (vorlaufGefuellt < vorlauf.size) vorlaufGefuellt++
+        }
+    }
+
+    /** Gibt den Vorlauf in zeitlicher Reihenfolge zurueck (aeltestes zuerst). */
+    private fun vorlaufLesen(): ShortArray {
+        val out = ShortArray(vorlaufGefuellt)
+        val start = if (vorlaufGefuellt < vorlauf.size) 0
+                    else vorlaufPos
+        for (i in 0 until vorlaufGefuellt) {
+            out[i] = vorlauf[(start + i) % vorlauf.size]
+        }
+        return out
+    }
 
     /** Sichtbare Diagnose: Der Dienst meldet seinen Zustand in die
      *  SharedPreferences, die MainActivity zeigt ihn live an. Auf dem
@@ -210,7 +270,7 @@ class WakeWordService : Service() {
                     // Porcupine-Zeit).
                     meldeStatus("Weckwort erkannt – ich höre Ihre Frage …")
                     ton(ToneGenerator.TONE_PROP_BEEP)
-                    val frage = nimmFrageAuf()
+                    val frage = nimmFrageAufAusStrom()
                     if (frage != null && frage.length() > 0) {
                         ton(ToneGenerator.TONE_PROP_ACK)
                         meldeStatus("Frage aufgenommen, sende an Jarvis …")
@@ -304,6 +364,10 @@ class WakeWordService : Service() {
         var bloecke = 0
         // Zaehlt, wie viele Bloecke IN FOLGE ueber der Schwelle lagen.
         var ueberSchwelle = 0
+        // Beim Treffer bleibt das Mikrofon OFFEN, damit die Frage ohne
+        // Rekorderwechsel aus demselben Strom weiterlaufen kann (v0.19).
+        var erkannt = false
+        vorlaufLeeren()
         try {
             while (aktiv) {
                 var gelesen = 0
@@ -316,6 +380,9 @@ class WakeWordService : Service() {
                     gelesen += n
                 }
                 if (!aktiv) return false
+                // Mitschreiben, BEVOR bewertet wird: Faellt das Weckwort in
+                // diesem Block, gehoert er selbst schon zum Vorlauf.
+                vorlaufSchreiben(block)
                 val score = try {
                     eng.verarbeite(block)
                 } catch (t: Throwable) {
@@ -326,7 +393,10 @@ class WakeWordService : Service() {
                     // Erst nach BESTAETIGUNGEN Bloecken in Folge gilt das
                     // Weckwort als gesprochen. Ein einzelner Ausschlag im
                     // Raumgespraech laeuft hier ins Leere.
-                    if (++ueberSchwelle >= BESTAETIGUNGEN) return true
+                    if (++ueberSchwelle >= BESTAETIGUNGEN) {
+                        erkannt = true
+                        return true
+                    }
                 } else {
                     ueberSchwelle = 0
                 }
@@ -345,7 +415,9 @@ class WakeWordService : Service() {
             }
             return false
         } finally {
-            gibMikrofonFrei()
+            // Beim Treffer NICHT freigeben - nimmFrageAufAusStrom() liest
+            // denselben Strom weiter und gibt danach frei.
+            if (!erkannt) gibMikrofonFrei()
         }
     }
 
@@ -357,46 +429,101 @@ class WakeWordService : Service() {
     }
 
     /**
-     * Nimmt die Frage nach dem Weckwort auf. Einfache Stille-Erkennung:
-     * Ende, sobald nach gesprochenen Worten ~1,3 s Ruhe herrscht;
-     * Obergrenze 10 s. Wurde gar nicht gesprochen, wird nichts gesendet.
+     * Nimmt die Frage nach dem Weckwort auf - aus DEMSELBEN, noch laufenden
+     * AudioRecord-Strom (v0.19). Vorangestellt wird der Ringpuffer der letzten
+     * Sekunde, sodass ein in einem Zug gesprochenes "Hey Jarvis, wann ..."
+     * vollstaendig erhalten bleibt. Ergebnis ist eine WAV-Datei (16 kHz, mono,
+     * PCM16) - der Server leitet das Format aus dem Dateinamen ab.
+     *
+     * Frueher (bis v0.18) wurde hier ein MediaRecorder neu aufgebaut. Dessen
+     * Anlaufzeit war die Ursache fuer die abgeschnittenen Satzanfaenge, siehe
+     * Begruendung an VORLAUF_SAMPLES.
+     *
+     * Stille-Erkennung unveraendert: Ende, sobald nach gesprochenen Worten
+     * ~1,3 s Ruhe herrscht; Obergrenze 10 s. Wurde gar nicht gesprochen, wird
+     * nichts gesendet.
+     *
+     * WICHTIG: Der Vorlauf zaehlt bewusst NICHT als "gesprochen" - sonst
+     * wuerde das Weckwort selbst die Stille-Uhr starten und die Aufnahme
+     * abbrechen, waehrend Doreen nach dem Zuruf noch ueberlegt.
      */
-    private fun nimmFrageAuf(): File? {
-        val datei = File(cacheDir, "wake_frage.m4a")
-        @Suppress("DEPRECATION")
-        val rec = MediaRecorder()
+    private fun nimmFrageAufAusStrom(): File? {
+        val rec = audioRecord ?: return null
+        val datei = File(cacheDir, "wake_frage.wav")
         return try {
-            rec.setAudioSource(MediaRecorder.AudioSource.MIC)
-            rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            rec.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            rec.setAudioEncodingBitRate(128000)
-            rec.setAudioSamplingRate(44100)
-            rec.setOutputFile(datei.absolutePath)
-            rec.prepare()
-            rec.start()
-
-            var laufzeit = 0
-            var stilleSeit = 0
-            var gesprochen = false
-            while (laufzeit < 10_000) {
-                Thread.sleep(250)
-                laufzeit += 250
-                val pegel = rec.maxAmplitude
-                if (pegel > 1500) {
-                    gesprochen = true
-                    stilleSeit = 0
-                } else if (gesprochen) {
-                    stilleSeit += 250
-                    if (stilleSeit >= 1300) break
+            val daten = java.io.ByteArrayOutputStream()
+            fun schreibe(samples: ShortArray, anzahl: Int) {
+                for (i in 0 until anzahl) {
+                    val s = samples[i].toInt()
+                    daten.write(s and 0xFF)
+                    daten.write((s shr 8) and 0xFF)
                 }
             }
-            rec.stop()
-            rec.release()
-            if (gesprochen) datei else null
+
+            val vor = vorlaufLesen()
+            schreibe(vor, vor.size)
+
+            val block = ShortArray(OpenWakeWord.BLOCK_SAMPLES)  // 80 ms
+            var laufzeitMs = 0
+            var stilleMs = 0
+            var gesprochen = false
+            while (aktiv && laufzeitMs < AUFNAHME_MAX_MS) {
+                var gelesen = 0
+                while (aktiv && gelesen < block.size) {
+                    val n = rec.read(block, gelesen, block.size - gelesen)
+                    if (n <= 0) return null
+                    gelesen += n
+                }
+                if (!aktiv) return null
+                schreibe(block, block.size)
+                laufzeitMs += 80
+
+                var pegel = 0
+                for (s in block) {
+                    val a = if (s >= 0) s.toInt() else -s.toInt()
+                    if (a > pegel) pegel = a
+                }
+                if (pegel > SPRACH_PEGEL) {
+                    gesprochen = true
+                    stilleMs = 0
+                } else if (gesprochen) {
+                    stilleMs += 80
+                    if (stilleMs >= STILLE_ENDE_MS) break
+                }
+            }
+            if (!gesprochen) return null
+            datei.writeBytes(alsWav(daten.toByteArray()))
+            datei
         } catch (e: Exception) {
-            try { rec.release() } catch (_: Exception) {}
+            meldeStatus("FEHLER bei der Aufnahme: $e")
             null
+        } finally {
+            // Ab hier wird das Mikrofon nicht mehr gebraucht: Die Antwort
+            // wird abgespielt, und Jarvis' eigene Stimme darf nicht in die
+            // Erkennung zurueckwandern.
+            gibMikrofonFrei()
         }
+    }
+
+    /** Setzt den 44-Byte-WAV-Kopf (PCM16, mono, SAMPLE_RATE) vor die Rohdaten. */
+    private fun alsWav(pcm: ByteArray): ByteArray {
+        val kopf = java.nio.ByteBuffer.allocate(44)
+            .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        val byteRate = SAMPLE_RATE * 2  // mono * 16 bit
+        kopf.put("RIFF".toByteArray())
+        kopf.putInt(36 + pcm.size)
+        kopf.put("WAVE".toByteArray())
+        kopf.put("fmt ".toByteArray())
+        kopf.putInt(16)             // Groesse des fmt-Blocks
+        kopf.putShort(1)            // PCM, unkomprimiert
+        kopf.putShort(1)            // ein Kanal
+        kopf.putInt(SAMPLE_RATE)
+        kopf.putInt(byteRate)
+        kopf.putShort(2)            // Blockausrichtung
+        kopf.putShort(16)           // Bits pro Sample
+        kopf.put("data".toByteArray())
+        kopf.putInt(pcm.size)
+        return kopf.array() + pcm
     }
 
     /** Schickt die Aufnahme an /assistant - gleiche Retry-/Idempotenz-Logik
@@ -431,7 +558,11 @@ class WakeWordService : Service() {
                     .addFormDataPart("key", key)
                     .addFormDataPart("request_id", requestId)
                     .addFormDataPart(
-                        "audio", "frage.m4a", audio.asRequestBody("audio/mp4".toMediaType())
+                        // Endung mitfuehren (seit v0.19 .wav, siehe StreamClient).
+                        "audio", audio.name, audio.asRequestBody(
+                            (if (audio.name.endsWith(".wav", ignoreCase = true))
+                                "audio/wav" else "audio/mp4").toMediaType()
+                        )
                     )
                     .build()
                 val request = Request.Builder()
