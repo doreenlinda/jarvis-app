@@ -101,5 +101,25 @@
             android:textSize="16sp"
             android:textIsSelectable="true"
             android:text="" />
+
+        <!-- Nachrichten, die Jarvis von sich aus schickt (Briefings,
+             Manus-Ergebnisse). Wird in MainActivity programmatisch
+             gefuellt - eine Liste mit wenigen Eintraegen braucht keine
+             eigene Listen-Mechanik. -->
+        <TextView
+            android:id="@+id/postfachTitel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="28dp"
+            android:paddingBottom="4dp"
+            android:textSize="18sp"
+            android:text="Nachrichten von Jarvis" />
+
+        <LinearLayout
+            android:id="@+id/postfachListe"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="24dp" />
     </LinearLayout>
 </ScrollView>

@@ -126,11 +126,18 @@ class WakeWordService : Service() {
         // Kuerzer als das hier (WAV-Kopf + ~1 s Ton) wird gar nicht erst
         // gesendet - dann war es doch nur ein Geraeusch.
         private const val NACHFASS_MIN_BYTES = 44 + SAMPLE_RATE * 2
+        // Wie oft beim Server nachgesehen wird, ob Jarvis etwas gemeldet hat.
+        // 60 s: Die Anlaesse sind ein fertiger Manus-Auftrag (laeuft Stunden)
+        // und die Briefings (feste Uhrzeit) - schneller braucht es nicht, und
+        // eine winzige Anfrage pro Minute faellt neben dem dauerhaft offenen
+        // Mikrofon nicht ins Gewicht.
+        private const val NACHSEHEN_INTERVALL_MS = 60_000L
     }
 
     @Volatile private var aktiv = false
     private var lauschThread: Thread? = null
     private var herzschlagThread: Thread? = null
+    private var postfachThread: Thread? = null
     private var audioRecord: AudioRecord? = null
     private var engine: OpenWakeWord? = null
 
@@ -279,6 +286,7 @@ class WakeWordService : Service() {
         meldeStatus("Modelle geladen, starte Selbsttest …")
         aktiv = true
         starteHerzschlag()
+        starteNachsehen()
         lauschThread = thread {
             try {
                 selbsttest()
@@ -449,6 +457,66 @@ class WakeWordService : Service() {
             // Beim Treffer NICHT freigeben - nimmFrageAufAusStrom() liest
             // denselben Strom weiter und gibt danach frei.
             if (!erkannt) gibMikrofonFrei()
+        }
+    }
+
+    /**
+     * Sieht regelmaessig nach, ob Jarvis von sich aus etwas gemeldet hat
+     * (fertiger Manus-Auftrag, Briefing) - seit v0.22 an Telegrams Stelle.
+     *
+     * Laeuft als eigener Thread neben dem Lauschen. Kein Push-Dienst noetig,
+     * weil dieser Dienst ohnehin dauerhaft laeuft; ein Firebase-Projekt,
+     * weitere Zugangsdaten und ein zusaetzlicher Anbieter bleiben Doreen
+     * damit erspart.
+     *
+     * WICHTIG - die Benachrichtigung zeigt NUR den Titel, nie den Inhalt:
+     * Sie erscheint auf dem gesperrten Bildschirm, bevor irgendeine
+     * App-Sperre greift. Ein Depotstand oder eine Terminliste hat dort
+     * nichts verloren.
+     */
+    private fun starteNachsehen() {
+        postfachThread = thread {
+            // Kurz warten, damit der Dienststart nicht mit einem Netzaufruf
+            // konkurriert (Modelle laden zuerst).
+            try { Thread.sleep(10_000) } catch (_: InterruptedException) { return@thread }
+            while (aktiv) {
+                try {
+                    val neue = Postfach.abholen(applicationContext, client, System.currentTimeMillis())
+                    neue.forEach { melde(it) }
+                } catch (t: Throwable) {
+                    // Ein Netzfehler darf das Lauschen niemals stoeren.
+                }
+                try { Thread.sleep(NACHSEHEN_INTERVALL_MS) } catch (_: InterruptedException) { return@thread }
+            }
+        }
+    }
+
+    private fun melde(n: Postfach.Nachricht) {
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val kanalId = "jarvis_nachrichten"
+            if (Build.VERSION.SDK_INT >= 26) {
+                nm.createNotificationChannel(
+                    NotificationChannel(kanalId, "Jarvis meldet sich", NotificationManager.IMPORTANCE_DEFAULT)
+                )
+            }
+            val oeffnen = android.app.PendingIntent.getActivity(
+                this, 0,
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val bau = NotificationCompat.Builder(this, kanalId)
+                .setContentTitle(n.titel)
+                // BEWUSST kein Inhalt - siehe Begruendung oben.
+                .setContentText("In der App öffnen")
+                .setSmallIcon(android.R.drawable.ic_dialog_email)
+                .setContentIntent(oeffnen)
+                .setAutoCancel(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            nm.notify(n.id.toInt().coerceAtLeast(2), bau.build())
+        } catch (t: Throwable) {
+            meldeStatus("FEHLER bei der Benachrichtigung: $t")
         }
     }
 

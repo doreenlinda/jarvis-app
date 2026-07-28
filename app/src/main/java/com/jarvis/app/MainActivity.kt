@@ -459,6 +459,63 @@ class MainActivity : AppCompatActivity() {
         }
         statusHandler.removeCallbacks(statusRunnable)
         statusHandler.post(statusRunnable)
+        zeigePostfach()
+    }
+
+    /**
+     * Zeigt die Nachrichten, die Jarvis von sich aus geschickt hat
+     * (Briefings, Manus-Ergebnisse) - seit v0.22 an Telegrams Stelle.
+     * Bewusst programmatisch statt mit einer Listen-Mechanik: Es sind
+     * hoechstens ein paar Dutzend Eintraege in einer ohnehin scrollenden
+     * Seite.
+     */
+    private fun zeigePostfach() {
+        val liste = findViewById<android.widget.LinearLayout>(R.id.postfachListe) ?: return
+        liste.removeAllViews()
+        val nachrichten = Postfach.alle(this)
+        if (nachrichten.isEmpty()) {
+            liste.addView(TextView(this).apply {
+                text = "Noch nichts. Briefings und fertige Manus-Aufträge landen hier."
+                textSize = 13f
+                setTypeface(null, android.graphics.Typeface.ITALIC)
+            })
+            return
+        }
+        val format = java.text.SimpleDateFormat("dd.MM., HH:mm", java.util.Locale.GERMANY)
+        nachrichten.forEach { n ->
+            liste.addView(TextView(this).apply {
+                text = "${n.titel} · ${format.format(java.util.Date(n.zeit))}"
+                textSize = 15f
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setPadding(0, 20, 0, 2)
+            })
+            liste.addView(TextView(this).apply {
+                text = n.text
+                textSize = 15f
+                setTextIsSelectable(true)   // zum Kopieren, z. B. Einkaufsliste
+            })
+            val audio = n.audioDatei
+            if (audio != null && File(audio).exists()) {
+                liste.addView(Button(this).apply {
+                    text = "▶ Anhören"
+                    setOnClickListener { spieleDatei(audio) }
+                })
+            }
+        }
+    }
+
+    /** Spielt eine lokal abgelegte Nachricht (z. B. das Briefing) ab. */
+    private fun spieleDatei(pfad: String) {
+        try {
+            player?.release()
+            player = MediaPlayer().apply {
+                setDataSource(pfad)
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            answerView.text = "Konnte die Aufnahme nicht abspielen: $e"
+        }
     }
 
     override fun onPause() {
