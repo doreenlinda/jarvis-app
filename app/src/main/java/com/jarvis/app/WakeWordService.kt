@@ -113,6 +113,19 @@ class WakeWordService : Service() {
         // Schwelle 0,65 und zwei Bestaetigungsbloecke die Fehlalarme
         // praktisch abgestellt haben.
         private const val AUFNAHME_MAX_MS = 30_000
+        // NACHFASS-FENSTER (v0.21): So lange bleibt das Mikrofon nach der
+        // Antwort offen, damit Doreen ohne erneutes "Hey Jarvis" weiterreden
+        // kann. 7 s ist lang genug zum Nachdenken und kurz genug, dass das
+        // Mikrofon nicht gefuehlt dauernd offen ist.
+        private const val NACHFASS_FENSTER_MS = 7_000
+        // So viele Bloecke (a 80 ms) muessen IN FOLGE ueber dem Sprachpegel
+        // liegen, damit das Fenster als "sie spricht" gilt. Drei Bloecke =
+        // 240 ms - ein Klappern oder Huesteln reicht damit nicht. Gleiche
+        // Idee wie BESTAETIGUNGEN beim Weckwort.
+        private const val NACHFASS_ONSET_BLOECKE = 3
+        // Kuerzer als das hier (WAV-Kopf + ~1 s Ton) wird gar nicht erst
+        // gesendet - dann war es doch nur ein Geraeusch.
+        private const val NACHFASS_MIN_BYTES = 44 + SAMPLE_RATE * 2
     }
 
     @Volatile private var aktiv = false
@@ -283,13 +296,18 @@ class WakeWordService : Service() {
                     // Porcupine-Zeit).
                     meldeStatus("Weckwort erkannt – ich höre Ihre Frage …")
                     ton(ToneGenerator.TONE_PROP_BEEP)
-                    val frage = nimmFrageAufAusStrom()
-                    if (frage != null && frage.length() > 0) {
+                    var frage = nimmFrageAufAusStrom()
+                    if (frage == null || frage.length() <= 0) {
+                        meldeStatus("Keine Frage gehört – ich lausche weiter.")
+                    }
+                    // Frage -> Antwort -> Nachfass-Fenster -> ggf. naechste
+                    // Frage, ohne erneutes Weckwort (v0.21). Das Fenster
+                    // schliesst sich von selbst, wenn sie nichts mehr sagt.
+                    while (aktiv && frage != null && frage.length() > 0) {
                         ton(ToneGenerator.TONE_PROP_ACK)
                         meldeStatus("Frage aufgenommen, sende an Jarvis …")
                         frageJarvis(frage)
-                    } else {
-                        meldeStatus("Keine Frage gehört – ich lausche weiter.")
+                        frage = if (aktiv) nachfassFenster() else null
                     }
                     // Puffer leeren, damit die eigene Aufnahme/Stimme keinen
                     // Fehlalarm hinterlaesst; danach lauscht die Schleife weiter.
@@ -460,7 +478,15 @@ class WakeWordService : Service() {
      * wuerde das Weckwort selbst die Stille-Uhr starten und die Aufnahme
      * abbrechen, waehrend Doreen nach dem Zuruf noch ueberlegt.
      */
-    private fun nimmFrageAufAusStrom(): File? {
+    private fun nimmFrageAufAusStrom(): File? = aufnehmenAusStrom(vorlaufLesen())
+
+    /**
+     * Der eigentliche Aufnahme-Vorgang auf dem schon offenen Mikrofon.
+     * `vorlauf` wird der Aufnahme vorangestellt (beim Weckwort der Ringpuffer,
+     * beim Nachfass-Fenster die schon gehoerten ersten Worte). Gibt das
+     * Mikrofon am Ende frei.
+     */
+    private fun aufnehmenAusStrom(vorlauf: ShortArray): File? {
         val rec = audioRecord ?: return null
         val datei = File(cacheDir, "wake_frage.wav")
         return try {
@@ -473,8 +499,7 @@ class WakeWordService : Service() {
                 }
             }
 
-            val vor = vorlaufLesen()
-            schreibe(vor, vor.size)
+            schreibe(vorlauf, vorlauf.size)
 
             val block = ShortArray(OpenWakeWord.BLOCK_SAMPLES)  // 80 ms
             var laufzeitMs = 0
@@ -516,6 +541,87 @@ class WakeWordService : Service() {
             // Erkennung zurueckwandern.
             gibMikrofonFrei()
         }
+    }
+
+    /**
+     * NACHFASS-FENSTER (v0.21, auf Doreens Wunsch): Nach Jarvis' Antwort
+     * bleibt das Mikrofon einige Sekunden offen. Spricht sie in dieser Zeit
+     * weiter, gilt das als naechste Frage – OHNE erneutes "Hey Jarvis".
+     * So wird aus Zuruf/Antwort ein Gespraech.
+     *
+     * Rueckgabe: die Aufnahme der Anschlussfrage, oder null, wenn im Fenster
+     * nichts gesprochen wurde (dann geht es zurueck ins normale Lauschen).
+     *
+     * Gegen Fehlstarts durch Umgebungsgeraeusche:
+     *   - Es muessen NACHFASS_ONSET_BLOECKE Bloecke IN FOLGE ueber dem
+     *     Sprachpegel liegen (ein Tellerklappern reicht nicht).
+     *   - Der Ringpuffer laeuft mit, damit das erste Wort erhalten bleibt.
+     *   - Kommt am Ende zu wenig Ton zusammen, wird gar nichts gesendet
+     *     (siehe NACHFASS_MIN_BYTES) – lieber schweigen als auf ein
+     *     Geraeusch antworten.
+     */
+    private fun nachfassFenster(): File? {
+        val minPuffer = AudioRecord.getMinBufferSize(
+            SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
+        val rec = try {
+            AudioRecord(
+                MediaRecorder.AudioSource.MIC, SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
+                maxOf(minPuffer, OpenWakeWord.BLOCK_SAMPLES * 2 * 4)
+            )
+        } catch (e: Exception) {
+            null
+        }
+        if (rec == null || rec.state != AudioRecord.STATE_INITIALIZED) {
+            try { rec?.release() } catch (_: Exception) {}
+            return null
+        }
+        audioRecord = rec
+        rec.startRecording()
+        meldeStatus("Ich höre noch – sprechen Sie einfach weiter.")
+
+        vorlaufLeeren()
+        val block = ShortArray(OpenWakeWord.BLOCK_SAMPLES)
+        var wartezeitMs = 0
+        var ueberPegel = 0
+        try {
+            while (aktiv && wartezeitMs < NACHFASS_FENSTER_MS) {
+                var gelesen = 0
+                while (aktiv && gelesen < block.size) {
+                    val n = rec.read(block, gelesen, block.size - gelesen)
+                    if (n <= 0) { gibMikrofonFrei(); return null }
+                    gelesen += n
+                }
+                if (!aktiv) { gibMikrofonFrei(); return null }
+                vorlaufSchreiben(block)
+                wartezeitMs += 80
+
+                var pegel = 0
+                for (s in block) {
+                    val a = if (s >= 0) s.toInt() else -s.toInt()
+                    if (a > pegel) pegel = a
+                }
+                if (pegel > SPRACH_PEGEL) {
+                    if (++ueberPegel >= NACHFASS_ONSET_BLOECKE) {
+                        // Sie spricht: ab hier normale Aufnahme, der Vorlauf
+                        // enthaelt die schon gehoerten ersten Silben.
+                        val aufnahme = aufnehmenAusStrom(vorlaufLesen())
+                        if (aufnahme != null && aufnahme.length() < NACHFASS_MIN_BYTES) {
+                            // Zu kurz - war vermutlich ein Geraeusch.
+                            return null
+                        }
+                        return aufnahme
+                    }
+                } else {
+                    ueberPegel = 0
+                }
+            }
+        } catch (e: Exception) {
+            meldeStatus("FEHLER im Nachfass-Fenster: $e")
+        }
+        gibMikrofonFrei()
+        return null
     }
 
     /** Setzt den 44-Byte-WAV-Kopf (PCM16, mono, SAMPLE_RATE) vor die Rohdaten. */
