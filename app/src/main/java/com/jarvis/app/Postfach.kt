@@ -77,6 +77,41 @@ object Postfach {
     }
 
     /**
+     * Loescht EINE Nachricht aus der Anzeige - samt ihrer lokal abgelegten
+     * Tondatei, sonst blieben verwaiste MP3s im Cache liegen.
+     *
+     * WICHTIG: Das betrifft ausschliesslich die ANZEIGE auf dem Handy. Das
+     * Gedaechtnis auf dem Rechner (transcripts.db + Chroma) bleibt unberuehrt
+     * - sonst wuerde Jarvis genau das vergessen, wofuer er da ist. Auf dem
+     * Server ist die Nachricht ohnehin schon erledigt: Sie wurde beim Abholen
+     * bestaetigt, und ihre serverseitige Tondatei wurde dabei geloescht.
+     * Es braucht hier also KEINEN Netzaufruf.
+     */
+    fun loeschen(ctx: Context, id: Long) {
+        val liste = alle(ctx)
+        liste.firstOrNull { it.id == id }?.audioDatei?.let { pfad ->
+            try {
+                File(pfad).delete()
+            } catch (_: Exception) {
+            }
+        }
+        speichern(ctx, liste.filter { it.id != id })
+    }
+
+    /** Leert die Anzeige komplett - ebenfalls nur lokal, siehe [loeschen]. */
+    fun alleLoeschen(ctx: Context) {
+        alle(ctx).forEach { n ->
+            n.audioDatei?.let { pfad ->
+                try {
+                    File(pfad).delete()
+                } catch (_: Exception) {
+                }
+            }
+        }
+        speichern(ctx, emptyList())
+    }
+
+    /**
      * Holt neue Nachrichten vom Server, speichert sie lokal und bestaetigt
      * sie erst DANACH. Gibt die neu hinzugekommenen zurueck (fuer die
      * Benachrichtigung); bei Netzfehlern eine leere Liste - der naechste

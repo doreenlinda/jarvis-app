@@ -481,6 +481,26 @@ class MainActivity : AppCompatActivity() {
             })
             return
         }
+        // "Alle löschen" nur zeigen, wenn es etwas zu löschen gibt. Anders als
+        // beim Löschen einer einzelnen Nachricht wird hier nachgefragt - ein
+        // Fehlgriff würde sonst ein noch ungelesenes Manus-Ergebnis mitnehmen.
+        liste.addView(Button(this).apply {
+            text = "Alle löschen"
+            setOnClickListener {
+                android.app.AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Alle Nachrichten löschen?")
+                    .setMessage(
+                        "Entfernt ${nachrichten.size} Nachricht(en) aus dieser " +
+                        "Anzeige. Jarvis' Gedächtnis bleibt davon unberührt."
+                    )
+                    .setPositiveButton("Löschen") { _, _ ->
+                        Postfach.alleLoeschen(this@MainActivity)
+                        zeigePostfach()
+                    }
+                    .setNegativeButton("Abbrechen", null)
+                    .show()
+            }
+        })
         val format = java.text.SimpleDateFormat("dd.MM., HH:mm", java.util.Locale.GERMANY)
         nachrichten.forEach { n ->
             liste.addView(TextView(this).apply {
@@ -494,13 +514,29 @@ class MainActivity : AppCompatActivity() {
                 textSize = 15f
                 setTextIsSelectable(true)   // zum Kopieren, z. B. Einkaufsliste
             })
-            val audio = n.audioDatei
-            if (audio != null && File(audio).exists()) {
-                liste.addView(Button(this).apply {
-                    text = "▶ Anhören"
-                    setOnClickListener { spieleDatei(audio) }
+            // Anhören und Löschen nebeneinander, damit eine Nachricht nicht
+            // über zwei Knopfreihen auseinanderläuft.
+            liste.addView(android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                val audio = n.audioDatei
+                if (audio != null && File(audio).exists()) {
+                    addView(Button(this@MainActivity).apply {
+                        text = "▶ Anhören"
+                        setOnClickListener { spieleDatei(audio) }
+                    })
+                }
+                addView(Button(this@MainActivity).apply {
+                    text = "Löschen"
+                    // Bewusst ohne Rückfrage: Es geht um EINE Zeile in einer
+                    // Anzeige, nichts Unwiederbringliches - eine Nachfrage bei
+                    // jedem Antippen wäre genau die Zumutung, die sie am
+                    // 27.07. gerügt hat.
+                    setOnClickListener {
+                        Postfach.loeschen(this@MainActivity, n.id)
+                        zeigePostfach()
+                    }
                 })
-            }
+            })
         }
     }
 
