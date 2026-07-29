@@ -60,7 +60,20 @@ class WakeWordService : Service() {
         // unterhielt - Jarvis nahm Gespraechsfetzen auf und antwortete darauf
         // ("Wenn du vertretest, hast du ja also deinem Friseur"). Alle neun
         // Faelle sind im Transkript des Orchestrators belegt.
-        private const val SCHWELLE = 0.65f
+        // Am 29.07.2026 auf 0,55 zurueckgenommen: 0,65 war zu streng. Doreen
+        // musste "Hey Jarvis" mehrfach wiederholen, und einmal loeste es erst
+        // MITTEN in ihrem naechsten Satz aus - im Transkript kam nur noch
+        // "DEKRA, Hauptuntersuchung, Hyundai Kona, Parqet," an, ein Fetzen
+        // ohne Anfang. Das sah wie ein Fehlalarm aus, war aber ein VERSPAETETER
+        // Treffer: dasselbe Problem wie das Nicht-Ansprechen, nicht das
+        // Gegenteil davon.
+        //
+        // BESTAETIGUNGEN bleibt bei 2 - das ist ohnehin der wirksamere Filter
+        // (ein Fehlalarm ist ein einzelner Zufallstreffer, ein echtes
+        // "Hey Jarvis" haelt den Wert ueber mehrere Bloecke hoch). 0,55 mit
+        // zwei Bestaetigungen ist strenger als die urspruenglichen 0,5 ohne,
+        // mit denen die neun Fehlalarme vom 26.07. entstanden.
+        private const val SCHWELLE = 0.55f
         // Zusaetzlich muss der Wert in MEHREREN AUFEINANDERFOLGENDEN Bloecken
         // ueber der Schwelle liegen. Ein einzelner Ausschlag reicht nicht -
         // genau so sehen Fehlalarme aus (ein Laut im Gespraech trifft zufaellig
