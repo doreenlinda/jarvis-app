@@ -312,11 +312,17 @@ class WakeWordService : Service() {
                     // Frage -> Antwort -> Nachfass-Fenster -> ggf. naechste
                     // Frage, ohne erneutes Weckwort (v0.21). Das Fenster
                     // schliesst sich von selbst, wenn sie nichts mehr sagt.
+                    // Die ERSTE Frage folgt auf ihr "Hey Jarvis" - sie hat ihn
+                    // also bewusst gerufen. Alles Weitere stammt aus dem
+                    // Nachfass-Fenster und ist spekulativ: Dort darf ein
+                    // unverstaendlicher Fetzen nicht kommentiert werden.
+                    var ausNachfass = false
                     while (aktiv && frage != null && frage.length() > 0) {
                         ton(ToneGenerator.TONE_PROP_ACK)
                         meldeStatus("Frage aufgenommen, sende an Jarvis …")
-                        frageJarvis(frage)
+                        frageJarvis(frage, ausNachfass)
                         frage = if (aktiv) nachfassFenster() else null
+                        ausNachfass = true
                     }
                     // Puffer leeren, damit die eigene Aufnahme/Stimme keinen
                     // Fehlalarm hinterlaesst; danach lauscht die Schleife weiter.
@@ -716,7 +722,7 @@ class WakeWordService : Service() {
 
     /** Schickt die Aufnahme an /assistant - gleiche Retry-/Idempotenz-Logik
      *  wie der Sprechen-Knopf in der App. */
-    private fun frageJarvis(audio: File) {
+    private fun frageJarvis(audio: File, ausNachfass: Boolean = false) {
         val prefs = getSharedPreferences("jarvis", Context.MODE_PRIVATE)
         val base = (prefs.getString("url", "") ?: "").trim().trimEnd('/')
         val key = prefs.getString("key", "") ?: ""
@@ -733,6 +739,7 @@ class WakeWordService : Service() {
                 ctx = this, client = client, base = base, key = key,
                 text = null, audio = audio, cacheDir = cacheDir,
                 blockiereBisGesprochen = true,
+                stillBeiUnverstanden = ausNachfass,
             )
             if (gestreamt) return
         } catch (t: Throwable) {
@@ -768,6 +775,12 @@ class WakeWordService : Service() {
                         return
                     }
                     val json = Krypto.auspacken(this, JSONObject(resp.body?.string() ?: "{}"))
+                    // Gleiche Regel wie im Strom: Ein "nichts verstanden" aus
+                    // dem Nachfass-Fenster bleibt still.
+                    if (json.optString("anlass") == "nichts_verstanden" && ausNachfass) {
+                        meldeStatus("Nichts verstanden (Nachfass) – ich lausche weiter.")
+                        return
+                    }
                     val audioB64 = if (json.isNull("audio_base64")) null
                                    else json.optString("audio_base64", null)
                     if (audioB64 != null) spieleAntwort(audioB64)

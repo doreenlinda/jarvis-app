@@ -118,6 +118,10 @@ object StreamClient {
         cacheDir: File,
         blockiereBisGesprochen: Boolean,
         image: File? = null,
+        /** true, wenn die Aufnahme aus dem Nachfass-Fenster stammt: Dann wird
+         *  ein "nichts verstanden" stillschweigend verworfen, statt es
+         *  vorzulesen - sie hat Jarvis in dem Moment ja nicht gerufen. */
+        stillBeiUnverstanden: Boolean = false,
         onTranscript: (String) -> Unit = {},
         onText: (String) -> Unit = {},
     ): Boolean {
@@ -186,6 +190,23 @@ object StreamClient {
                     when (ev.optString("type")) {
                         "transcript" -> onTranscript(ev.optString("text", ""))
                         "chunk" -> {
+                            // Hat Whisper nichts verstanden, sagt der Server das
+                            // mit "anlass": "nichts_verstanden". Kam die Aufnahme
+                            // aus dem NACHFASS-Fenster, hat Doreen Jarvis gar
+                            // nicht gerufen - das Fenster stand nur offen und hat
+                            // ein Geraeusch aufgeschnappt. Dann bleibt er still
+                            // und lauscht weiter; sonst wuerde er jedes Rascheln
+                            // im Raum kommentieren.
+                            // WICHTIG: bloecke wird trotzdem hochgezaehlt, damit
+                            // der Aufrufer NICHT auf /assistant zurueckfaellt -
+                            // sonst liefe dieselbe Aufnahme ein zweites Mal durch
+                            // Whisper (am 29.07.2026 als Ursache fuer spuerbar
+                            // spaete Antworten nachgewiesen).
+                            val unverstanden = ev.optString("anlass") == "nichts_verstanden"
+                            if (unverstanden && stillBeiUnverstanden) {
+                                bloecke++
+                                continue
+                            }
                             val stueck = ev.optString("text", "")
                             if (stueck.isNotEmpty()) {
                                 if (gesamttext.isNotEmpty()) gesamttext.append(" ")
