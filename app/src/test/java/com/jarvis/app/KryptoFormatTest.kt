@@ -32,7 +32,7 @@ import javax.crypto.spec.SecretKeySpec
 class KryptoFormatTest {
 
     private val schluesselB64 = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
-    private val klartext = "Guten Morgen, Masterin – 3.436 Euro. Ümläute und ✓"
+    private val klartext = "ABSICHTLICH FALSCH"
     private val chiffratAusPython =
         "aX8X769Qx/b8N0mEb7yXRtIASLQI07QWX6s8Ooeb1He+1/xBKEHZV7i+zHpe0CgGEV87G3wOQtPEcHF+YgV/D0XmrGoBLA2titnhnfbkj9LgAoBd"
 
