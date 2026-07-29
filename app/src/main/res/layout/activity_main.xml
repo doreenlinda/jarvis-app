@@ -23,28 +23,49 @@
             android:textSize="13sp"
             android:paddingBottom="16dp" />
 
-        <EditText
-            android:id="@+id/serverUrl"
-            android:layout_width="match_parent"
+        <!-- Zugangsdaten liegen hinter einem Schalter und sind standardmaessig
+             ZU. Sie braucht sie nur einmal je Installation, aber sie stehen
+             ganz oben und landen auf jedem Screenshot - und Screenshots sind
+             ihr wichtigstes Diagnosewerkzeug (die komplette Health-Sync-Suche
+             lief ueber Bildschirmfotos). Beim ersten Start ohne gespeicherte
+             Daten klappt der Bereich automatisch auf. -->
+        <Button
+            android:id="@+id/zugangToggle"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:hint="Server-URL (z. B. https://...ngrok-free.dev)"
-            android:inputType="textUri" />
+            android:text="Zugangsdaten einblenden"
+            android:textSize="12sp" />
 
-        <EditText
-            android:id="@+id/accessKey"
+        <LinearLayout
+            android:id="@+id/zugangBereich"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Zugangsschluessel"
-            android:inputType="text"
-            android:paddingTop="8dp" />
+            android:orientation="vertical"
+            android:visibility="gone">
 
-        <EditText
-            android:id="@+id/e2eKey"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Schluessel (E2E) - leer lassen = unverschluesselt"
-            android:inputType="text"
-            android:paddingTop="8dp" />
+            <EditText
+                android:id="@+id/serverUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Server-URL (z. B. https://...ngrok-free.dev)"
+                android:inputType="textUri" />
+
+            <EditText
+                android:id="@+id/accessKey"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Zugangsschluessel"
+                android:inputType="textPassword"
+                android:paddingTop="8dp" />
+
+            <EditText
+                android:id="@+id/e2eKey"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Schluessel (E2E) - leer lassen = unverschluesselt"
+                android:inputType="textPassword"
+                android:paddingTop="8dp" />
+        </LinearLayout>
 
         <EditText
             android:id="@+id/messageText"

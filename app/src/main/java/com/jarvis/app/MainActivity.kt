@@ -150,6 +150,25 @@ class MainActivity : AppCompatActivity() {
         keyField.setText(prefs.getString("key", ""))
         e2eField.setText(prefs.getString(Krypto.FELD, ""))
 
+        // Zugangsdaten standardmaessig ZU. Sie braucht sie nur einmal je
+        // Installation, aber sie stehen ganz oben und landen sonst auf jedem
+        // Screenshot - und Screenshots sind ihr wichtigstes Diagnosewerkzeug.
+        // Beim ERSTEN Start (nichts gespeichert) klappt der Bereich von selbst
+        // auf, sonst stuende sie vor einer App ohne sichtbare Eingabefelder.
+        val zugangBereich = findViewById<android.widget.LinearLayout>(R.id.zugangBereich)
+        val zugangToggle = findViewById<Button>(R.id.zugangToggle)
+        val nochNichtEingerichtet = (prefs.getString("url", "") ?: "").isEmpty()
+        zugangBereich.visibility =
+            if (nochNichtEingerichtet) android.view.View.VISIBLE else android.view.View.GONE
+        zugangToggle.text =
+            if (nochNichtEingerichtet) "Zugangsdaten ausblenden" else "Zugangsdaten einblenden"
+        zugangToggle.setOnClickListener {
+            val zu = zugangBereich.visibility != android.view.View.VISIBLE
+            zugangBereich.visibility =
+                if (zu) android.view.View.VISIBLE else android.view.View.GONE
+            zugangToggle.text = if (zu) "Zugangsdaten ausblenden" else "Zugangsdaten einblenden"
+        }
+
         sendButton.setOnClickListener {
             val msg = textField.text.toString().trim()
             if (msg.isEmpty()) { answerView.text = "Bitte eine Nachricht eingeben."; return@setOnClickListener }
