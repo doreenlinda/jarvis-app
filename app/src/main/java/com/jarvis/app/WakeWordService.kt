@@ -25,6 +25,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -729,7 +730,7 @@ class WakeWordService : Service() {
         meldeStatus("Frage gesendet – Antwort läuft …")
         try {
             val gestreamt = StreamClient.ask(
-                client = client, base = base, key = key,
+                ctx = this, client = client, base = base, key = key,
                 text = null, audio = audio, cacheDir = cacheDir,
                 blockiereBisGesprochen = true,
             )
@@ -741,15 +742,19 @@ class WakeWordService : Service() {
         val requestId = UUID.randomUUID().toString()
         for (versuch in 1..3) {
             try {
-                val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+                val e2e = Krypto.aktiv(this)
+                val typ = (if (audio.name.endsWith(".wav", ignoreCase = true))
+                    "audio/wav" else "audio/mp4").toMediaType()
+                val bauer = MultipartBody.Builder().setType(MultipartBody.FORM)
                     .addFormDataPart("key", key)
                     .addFormDataPart("request_id", requestId)
-                    .addFormDataPart(
+                if (e2e) bauer.addFormDataPart("e2e", "1")
+                val body = bauer.addFormDataPart(
                         // Endung mitfuehren (seit v0.19 .wav, siehe StreamClient).
-                        "audio", audio.name, audio.asRequestBody(
-                            (if (audio.name.endsWith(".wav", ignoreCase = true))
-                                "audio/wav" else "audio/mp4").toMediaType()
-                        )
+                        "audio", audio.name,
+                        if (e2e) Krypto.verschluesselnRoh(this, audio.readBytes())
+                            .toRequestBody(typ)
+                        else audio.asRequestBody(typ)
                     )
                     .build()
                 val request = Request.Builder()
@@ -762,7 +767,7 @@ class WakeWordService : Service() {
                         ton(ToneGenerator.TONE_SUP_ERROR)
                         return
                     }
-                    val json = JSONObject(resp.body?.string() ?: "{}")
+                    val json = Krypto.auspacken(this, JSONObject(resp.body?.string() ?: "{}"))
                     val audioB64 = if (json.isNull("audio_base64")) null
                                    else json.optString("audio_base64", null)
                     if (audioB64 != null) spieleAntwort(audioB64)

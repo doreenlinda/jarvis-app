@@ -123,8 +123,12 @@ object Postfach {
         val key = prefs.getString("key", "") ?: ""
         if (basis.isEmpty() || key.isEmpty()) return emptyList()
 
+        // Briefings enthalten Termine, Postfach und Depotstand - genau das,
+        // was nicht blank durch einen fremden Tunnel laufen soll.
+        val e2e = Krypto.aktiv(ctx)
         val anfrage = Request.Builder()
-            .url("$basis/app-nachrichten?key=" + java.net.URLEncoder.encode(key, "UTF-8"))
+            .url("$basis/app-nachrichten?key=" + java.net.URLEncoder.encode(key, "UTF-8")
+                 + (if (e2e) "&e2e=1" else ""))
             .addHeader("ngrok-skip-browser-warning", "true")
             .get()
             .build()
@@ -133,7 +137,7 @@ object Postfach {
         try {
             client.newCall(anfrage).execute().use { antwort ->
                 if (!antwort.isSuccessful) return emptyList()
-                val json = JSONObject(antwort.body?.string() ?: "{}")
+                val json = Krypto.auspacken(ctx, JSONObject(antwort.body?.string() ?: "{}"))
                 val arr = json.optJSONArray("nachrichten") ?: return emptyList()
                 for (i in 0 until arr.length()) {
                     val o = arr.getJSONObject(i)

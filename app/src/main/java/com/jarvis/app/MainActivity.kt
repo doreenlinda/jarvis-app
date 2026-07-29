@@ -25,6 +25,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -96,6 +97,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var urlField: EditText
     private lateinit var keyField: EditText
+    private lateinit var e2eField: EditText
     private lateinit var textField: EditText
     private lateinit var answerView: TextView
     private lateinit var talkButton: Button
@@ -135,6 +137,7 @@ class MainActivity : AppCompatActivity() {
 
         urlField = findViewById(R.id.serverUrl)
         keyField = findViewById(R.id.accessKey)
+        e2eField = findViewById(R.id.e2eKey)
         textField = findViewById(R.id.messageText)
         answerView = findViewById(R.id.answerView)
         talkButton = findViewById(R.id.talkButton)
@@ -145,6 +148,7 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("jarvis", Context.MODE_PRIVATE)
         urlField.setText(prefs.getString("url", ""))
         keyField.setText(prefs.getString("key", ""))
+        e2eField.setText(prefs.getString(Krypto.FELD, ""))
 
         sendButton.setOnClickListener {
             val msg = textField.text.toString().trim()
@@ -271,8 +275,27 @@ class MainActivity : AppCompatActivity() {
             answerView.text = "Bitte Server-URL und Schluessel ausfuellen."
             return false
         }
+        // Der E2E-Schluessel ist FREIWILLIG: leer bedeutet unverschluesselt
+        // wie bisher. Ein offensichtlich falscher Wert wird aber sofort
+        // gemeldet statt erst beim naechsten Zuruf - eine verschluckte
+        // Antwort waere schwer zuzuordnen.
+        val e2e = e2eField.text.toString().trim()
+        if (e2e.isNotEmpty()) {
+            val laenge = try {
+                android.util.Base64.decode(e2e, android.util.Base64.NO_WRAP).size
+            } catch (ex: Exception) {
+                -1
+            }
+            if (laenge != 32) {
+                answerView.text =
+                    "Der E2E-Schlüssel sieht nicht richtig aus (erwartet: 32 Byte als " +
+                    "base64, wie von crypto_utils.py erzeugt). Feld leeren = unverschlüsselt."
+                return false
+            }
+        }
         getSharedPreferences("jarvis", Context.MODE_PRIVATE).edit()
-            .putString("url", base).putString("key", key).apply()
+            .putString("url", base).putString("key", key)
+            .putString(Krypto.FELD, e2e).apply()
         return true
     }
 
@@ -351,7 +374,7 @@ class MainActivity : AppCompatActivity() {
         // zurueck – die Antwort kann also nie ganz ausbleiben.
         run {
             val gestreamt = StreamClient.ask(
-                client = client, base = base, key = key,
+                ctx = this, client = client, base = base, key = key,
                 text = text, audio = audio, cacheDir = cacheDir,
                 blockiereBisGesprochen = false, image = image,
                 onText = { laufend -> runOnUiThread { answerView.text = laufend } },
@@ -368,15 +391,25 @@ class MainActivity : AppCompatActivity() {
 
         for (versuch in 1..maxVersuche) {
             try {
+                val e2e = Krypto.aktiv(this)
                 val bodyBuilder = MultipartBody.Builder().setType(MultipartBody.FORM)
                     .addFormDataPart("key", key)
                     .addFormDataPart("request_id", requestId)
-                if (!text.isNullOrEmpty()) bodyBuilder.addFormDataPart("text", text)
+                if (e2e) bodyBuilder.addFormDataPart("e2e", "1")
+                if (!text.isNullOrEmpty()) bodyBuilder.addFormDataPart(
+                    "text", if (e2e) Krypto.verschluesselnText(this, text) else text
+                )
                 if (audio != null) bodyBuilder.addFormDataPart(
-                    "audio", "aufnahme.m4a", audio.asRequestBody("audio/mp4".toMediaType())
+                    "audio", "aufnahme.m4a",
+                    if (e2e) Krypto.verschluesselnRoh(this, audio.readBytes())
+                        .toRequestBody("audio/mp4".toMediaType())
+                    else audio.asRequestBody("audio/mp4".toMediaType())
                 )
                 if (image != null) bodyBuilder.addFormDataPart(
-                    "image", "foto.jpg", image.asRequestBody("image/jpeg".toMediaType())
+                    "image", "foto.jpg",
+                    if (e2e) Krypto.verschluesselnRoh(this, image.readBytes())
+                        .toRequestBody("image/jpeg".toMediaType())
+                    else image.asRequestBody("image/jpeg".toMediaType())
                 )
 
                 val request = Request.Builder()
@@ -391,7 +424,7 @@ class MainActivity : AppCompatActivity() {
                         runOnUiThread { answerView.text = "Fehler ${resp.code}: $respBody" }
                         return
                     }
-                    val json = JSONObject(respBody)
+                    val json = Krypto.auspacken(this, JSONObject(respBody))
                     val answer = json.optString("text", respBody)
                     val audioB64 = if (json.isNull("audio_base64")) null
                                    else json.optString("audio_base64", null)

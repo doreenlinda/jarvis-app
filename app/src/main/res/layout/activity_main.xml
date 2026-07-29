@@ -39,6 +39,14 @@
             android:paddingTop="8dp" />
 
         <EditText
+            android:id="@+id/e2eKey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Schluessel (E2E) - leer lassen = unverschluesselt"
+            android:inputType="text"
+            android:paddingTop="8dp" />
+
+        <EditText
             android:id="@+id/messageText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

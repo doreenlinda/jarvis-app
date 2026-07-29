@@ -1,5 +1,6 @@
 package com.jarvis.app
 
+import android.content.Context
 import android.media.MediaPlayer
 import android.util.Base64
 import okhttp3.MediaType.Companion.toMediaType
@@ -7,6 +8,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
@@ -107,6 +109,7 @@ object StreamClient {
      *         der Aufrufer soll auf den klassischen /assistant-Weg zurueckfallen.
      */
     fun ask(
+        ctx: Context,
         client: OkHttpClient,
         base: String,
         key: String,
@@ -119,20 +122,31 @@ object StreamClient {
         onText: (String) -> Unit = {},
     ): Boolean {
         val requestId = UUID.randomUUID().toString()
+        // Verschluesselt wird nur, wenn ein Schluessel hinterlegt ist. Ohne
+        // ihn laeuft alles wie bisher - so legt ein vergessener Schluessel
+        // den Assistenten nicht lahm.
+        val e2e = Krypto.aktiv(ctx)
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("key", key)
             .addFormDataPart("request_id", requestId)
-        if (!text.isNullOrEmpty()) body.addFormDataPart("text", text)
+        if (e2e) body.addFormDataPart("e2e", "1")
+        if (!text.isNullOrEmpty()) {
+            body.addFormDataPart("text", if (e2e) Krypto.verschluesselnText(ctx, text) else text)
+        }
         // Dateiname/Typ folgen der ENDUNG: Der Sprechen-Knopf liefert .m4a
         // (MediaRecorder), der Weckwort-Dienst seit v0.19 .wav (direkt aus
         // dem Mikrofonstrom). Der Server leitet das Format aus dem Namen ab -
         // ein fest verdrahtetes ".m4a" wuerde die WAV-Datei falsch benennen.
+        // Der Name bleibt auch verschluesselt lesbar; er ist Metadatum, kein
+        // Inhalt (siehe Krypto.kt).
         if (audio != null) {
             val wav = audio.name.endsWith(".wav", ignoreCase = true)
+            val typ = (if (wav) "audio/wav" else "audio/mp4").toMediaType()
             body.addFormDataPart(
                 "audio",
                 if (wav) "aufnahme.wav" else "aufnahme.m4a",
-                audio.asRequestBody((if (wav) "audio/wav" else "audio/mp4").toMediaType())
+                if (e2e) Krypto.verschluesselnRoh(ctx, audio.readBytes()).toRequestBody(typ)
+                else audio.asRequestBody(typ)
             )
         }
         // Ein Foto laeuft serverseitig NICHT als Wort-fuer-Wort-Strom (Vision
@@ -140,7 +154,10 @@ object StreamClient {
         // fertige Antwort wird blockweise vertont – der Ton startet dadurch
         // deutlich frueher als bei der Vertonung des ganzen Textes.
         if (image != null) body.addFormDataPart(
-            "image", "foto.jpg", image.asRequestBody("image/jpeg".toMediaType())
+            "image", "foto.jpg",
+            if (e2e) Krypto.verschluesselnRoh(ctx, image.readBytes())
+                .toRequestBody("image/jpeg".toMediaType())
+            else image.asRequestBody("image/jpeg".toMediaType())
         )
 
         val request = Request.Builder()
@@ -160,7 +177,12 @@ object StreamClient {
                 while (true) {
                     val zeile = quelle.readUtf8Line() ?: break
                     if (zeile.isBlank()) continue
-                    val ev = try { JSONObject(zeile) } catch (e: Exception) { continue }
+                    // Jede Zeile wird EINZELN ausgepackt - so bleibt das
+                    // satzweise Sprechen erhalten. Eine Zeile, die sich nicht
+                    // entschluesseln laesst, wird uebersprungen statt den
+                    // ganzen Strom abzubrechen.
+                    val ev = try { Krypto.auspacken(ctx, JSONObject(zeile)) }
+                             catch (e: Exception) { continue }
                     when (ev.optString("type")) {
                         "transcript" -> onTranscript(ev.optString("text", ""))
                         "chunk" -> {
