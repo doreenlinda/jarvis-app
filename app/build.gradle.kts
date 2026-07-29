@@ -78,6 +78,12 @@ dependencies {
     // nicht - Hauptverdacht beim "FEHLER beim Laden der Erkennung" aus
     // dem ersten v0.7-Test).
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
+    // JUnit nur fuer den Format-Test der Verschluesselung
+    // (KryptoFormatTest): Der Laptop hat keine Java-Werkzeugkette, Kotlin
+    // laesst sich also nur hier im Cloud-Build ueberhaupt ausfuehren. Der
+    // Test prueft gegen ein Chiffrat aus crypto_utils.py, dass beide Seiten
+    // dasselbe Format sprechen - BEVOR eine APK entsteht.
+    testImplementation("junit:junit:4.13.2")
 }
 
 

@@ -30,6 +30,14 @@ jobs:
       - name: Signatur-Keystore bereitstellen
         run: echo "${{ secrets.SIGNING_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/jarvis_signing.p12"
 
+      # VOR dem Bauen: Sprechen Kotlin und der Python-Server dasselbe
+      # Verschluesselungsformat? Der Laptop hat keine Java-Werkzeugkette,
+      # das ist also die einzige Stelle, an der sich das ueberhaupt pruefen
+      # laesst - und sie liegt bewusst VOR dem Bauen, damit bei einem
+      # Formatbruch gar keine APK erst entsteht.
+      - name: Verschluesselungs-Format pruefen
+        run: gradle testDebugUnitTest --no-daemon --stacktrace
+
       - name: Debug-APK bauen
         env:
           SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/jarvis_signing.p12
