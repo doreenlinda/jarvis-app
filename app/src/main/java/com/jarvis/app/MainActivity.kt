@@ -565,6 +565,22 @@ class MainActivity : AppCompatActivity() {
                 text = n.text
                 textSize = 15f
                 setTextIsSelectable(true)   // zum Kopieren, z. B. Einkaufsliste
+                // Internetadressen antippbar machen (Doreens Entscheidung vom
+                // 30.07.2026). Bis v0.27 standen Links hier nur als Text -
+                // sie haette sie abtippen muessen.
+                //
+                // WICHTIG: Linkify NACH dem Setzen von `text` aufrufen. Die
+                // XML-/Property-Variante `autoLink` wirkt nur auf Text, der
+                // DANACH gesetzt wird - hier waere sie wirkungslos geblieben.
+                // addLinks setzt die LinkMovementMethod gleich mit.
+                //
+                // Serverseitig entstehen solche Nachrichten NICHT, wenn die
+                // Antwort aus ihrem Postfach gebaut wurde (main._aus_dem_postfach) -
+                // ein Link aus einer fremden Mail wird hier also gar nicht
+                // erst antippbar.
+                android.text.util.Linkify.addLinks(
+                    this, android.text.util.Linkify.WEB_URLS
+                )
             })
             // Anhören und Löschen nebeneinander, damit eine Nachricht nicht
             // über zwei Knopfreihen auseinanderläuft.
