@@ -154,6 +154,50 @@ class WakeWordService : Service() {
     private var postfachThread: Thread? = null
     private var audioRecord: AudioRecord? = null
     private var engine: OpenWakeWord? = null
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+
+    /**
+     * Haelt die CPU wach, solange gelauscht wird.
+     *
+     * ENTDECKT AM 31.07.2026 (Doreen: "reagiert zu haeufig nicht, gerade da
+     * ich ihn ja auch aufrufen können will, wenn der Bildschirm aus ist").
+     * Ein Vordergrunddienst schuetzt den PROZESS davor, beendet zu werden -
+     * er garantiert aber NICHT, dass die CPU laeuft. Bei ausgeschaltetem
+     * Bildschirm darf das System den Anwendungsprozessor schlafen legen;
+     * unsere Erkennung braucht aber alle 80 ms einen Rechendurchlauf durch
+     * drei tflite-Modelle. Faellt der aus, hoert das Handy zwar noch zu,
+     * erkennt das Weckwort aber unzuverlaessig - genau das beschriebene
+     * Bild "reagiert manchmal, manchmal nicht".
+     *
+     * PARTIAL_WAKE_LOCK heisst: CPU an, Bildschirm und Tastaturlicht bleiben
+     * aus. Das kostet Akku - fuer einen Dienst, dessen ganzer Zweck das
+     * ununterbrochene Zuhoeren ist, ist das der ehrliche Preis. Freigegeben
+     * wird er in onDestroy, also sobald das Lauschen gestoppt wird.
+     */
+    private fun halteCpuWach() {
+        if (wakeLock != null) return
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            wakeLock = pm.newWakeLock(
+                android.os.PowerManager.PARTIAL_WAKE_LOCK,
+                "jarvis:weckwort"      // Format "app:tag" ist Pflicht
+            ).apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        } catch (t: Throwable) {
+            // Kein Grund, das Lauschen deswegen aufzugeben - ohne Wake Lock
+            // laeuft es wie bisher, nur unzuverlaessiger bei Bildschirm aus.
+            meldeStatus("Hinweis: CPU-Wachhalten nicht moeglich ($t)")
+        }
+    }
+
+    private fun gibCpuFrei() {
+        try {
+            if (wakeLock?.isHeld == true) wakeLock?.release()
+        } catch (_: Exception) {}
+        wakeLock = null
+    }
 
     /** Ringpuffer der zuletzt gehoerten Sekunde (siehe VORLAUF_SAMPLES).
      *  Laeuft waehrend des Lauschens dauerhaft mit und wird beim Weckwort
@@ -299,6 +343,7 @@ class WakeWordService : Service() {
         }
         meldeStatus("Modelle geladen, starte Selbsttest …")
         aktiv = true
+        halteCpuWach()
         starteHerzschlag()
         starteNachsehen()
         lauschThread = thread {
@@ -880,6 +925,7 @@ class WakeWordService : Service() {
     override fun onDestroy() {
         aktiv = false
         meldeStatus("Dienst beendet.", ueberschreibeFehler = false)
+        gibCpuFrei()
         gibMikrofonFrei()
         try { lauschThread?.join(1000) } catch (_: Exception) {}
         lauschThread = null

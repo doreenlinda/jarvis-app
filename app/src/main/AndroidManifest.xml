@@ -15,6 +15,11 @@
          stumm, damit bleiben auch Pieps ueber den Medienkanal unhoerbar.
          Normale Berechtigung, keine Nachfrage beim Nutzer noetig. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Haelt die CPU wach, solange gelauscht wird. Ein Vordergrunddienst
+         schuetzt nur den Prozess, nicht die Rechenzeit - bei ausgeschaltetem
+         Bildschirm fiel die Weckwort-Erkennung sonst zeitweise aus
+         (Doreen, 31.07.2026). Normale Berechtigung, keine Nachfrage. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
