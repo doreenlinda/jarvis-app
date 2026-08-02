@@ -374,12 +374,25 @@ class WakeWordService : Service() {
                     // also bewusst gerufen. Alles Weitere stammt aus dem
                     // Nachfass-Fenster und ist spekulativ: Dort darf ein
                     // unverstaendlicher Fetzen nicht kommentiert werden.
+                    // HOECHSTENS EINE Nachfrage pro Weckwort (v0.30, 02.08.2026).
+                    //
+                    // Vorher lief hier eine offene Kette: Nach JEDER Antwort
+                    // ging das Fenster erneut auf. Am 02.08. sagte Doreen ihr
+                    // Weckwort versehentlich, waehrend sie jemandem VON Jarvis
+                    // erzaehlte - danach hielt jedes Wort im Raum, das
+                    // innerhalb von 7 Sekunden fiel, die Kette am Laufen: 17
+                    // mitgeschnittene Wortwechsel ueber 17 Minuten, mitten in
+                    // einem fremden Gespraech (Transkript 12:14 bis 12:31).
+                    //
+                    // Die schnelle Rueckfrage bleibt erhalten - genau dafuer
+                    // wollte sie das Fenster -, aber die Kette ist an der
+                    // Wurzel gekappt: Danach braucht es wieder "Hey Jarvis".
                     var ausNachfass = false
                     while (aktiv && frage != null && frage.length() > 0) {
                         ton(ToneGenerator.TONE_PROP_ACK)
                         meldeStatus("Frage aufgenommen, sende an Jarvis …")
                         frageJarvis(frage, ausNachfass)
-                        frage = if (aktiv) nachfassFenster() else null
+                        frage = if (aktiv && !ausNachfass) nachfassFenster() else null
                         ausNachfass = true
                     }
                     // Puffer leeren, damit die eigene Aufnahme/Stimme keinen
