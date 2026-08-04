@@ -113,6 +113,29 @@
             android:paddingTop="16dp"
             android:paddingBottom="16dp" />
 
+        <!-- v0.31: Standort mitschicken. Bewusst NICHT hinter den
+             Zugangsdaten versteckt, sondern gleich sichtbar - sie soll die
+             Ortung im Vorbeigehen abstellen koennen, ohne die Berechtigung
+             in den Android-Einstellungen zurueckzunehmen. Darunter steht,
+             welchen Ort die App gerade kennt: Ohne diese Anzeige waere im
+             Alltag nicht pruefbar, ob die Ortung ueberhaupt etwas liefert. -->
+        <CheckBox
+            android:id="@+id/standortSchalter"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:textSize="14sp"
+            android:text="Standort mitschicken (für Empfehlungen unterwegs)" />
+
+        <TextView
+            android:id="@+id/standortInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="2dp"
+            android:textSize="13sp"
+            android:textStyle="italic"
+            android:text="" />
+
         <TextView
             android:id="@+id/wakeStatusView"
             android:layout_width="match_parent"

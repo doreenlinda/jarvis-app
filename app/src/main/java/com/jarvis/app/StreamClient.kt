@@ -122,6 +122,10 @@ object StreamClient {
          *  ein "nichts verstanden" stillschweigend verworfen, statt es
          *  vorzulesen - sie hat Jarvis in dem Moment ja nicht gerufen. */
         stillBeiUnverstanden: Boolean = false,
+        /** Aufenthaltsort als Adresstext (v0.31), leer = wie bisher. Der
+         *  Server nimmt dann ortsbezogene Fragen auf DIESEN Ort statt
+         *  nachzufragen. */
+        standort: String = "",
         onTranscript: (String) -> Unit = {},
         onText: (String) -> Unit = {},
     ): Boolean {
@@ -136,6 +140,14 @@ object StreamClient {
         if (e2e) body.addFormDataPart("e2e", "1")
         if (!text.isNullOrEmpty()) {
             body.addFormDataPart("text", if (e2e) Krypto.verschluesselnText(ctx, text) else text)
+        }
+        // Der Ort ist so schuetzenswert wie das gesprochene Wort und laeuft
+        // deshalb durch dieselbe Verschluesselung.
+        if (standort.isNotEmpty()) {
+            body.addFormDataPart(
+                "standort",
+                if (e2e) Krypto.verschluesselnText(ctx, standort) else standort
+            )
         }
         // Dateiname/Typ folgen der ENDUNG: Der Sprechen-Knopf liefert .m4a
         // (MediaRecorder), der Weckwort-Dienst seit v0.19 .wav (direkt aus

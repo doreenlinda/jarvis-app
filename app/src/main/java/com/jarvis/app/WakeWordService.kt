@@ -323,7 +323,17 @@ class WakeWordService : Service() {
             .setOngoing(true)
             .build()
         if (Build.VERSION.SDK_INT >= 30) {
-            startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+            // ORTUNGS-TYP NUR, WENN DIE ERLAUBNIS AUCH VORLIEGT (v0.31).
+            // Ab Android 14 stuerzt startForeground mit einer SecurityException
+            // ab, wenn ein Dienst den Typ "location" angibt, ohne die
+            // Berechtigung zu haben - das wuerde das Weckwort komplett
+            // lahmlegen, nur weil sie die Ortung abgelehnt hat. Deshalb wird
+            // der Typ hier zur Laufzeit zusammengesetzt statt fest verdrahtet.
+            var typ = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            if (Standort.erlaubt(this)) {
+                typ = typ or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            }
+            startForeground(1, n, typ)
         } else {
             startForeground(1, n)
         }
@@ -362,6 +372,14 @@ class WakeWordService : Service() {
                     // bewaehrte Frage-/Antwort-Ablauf (unveraendert aus der
                     // Porcupine-Zeit).
                     meldeStatus("Weckwort erkannt – ich höre Ihre Frage …")
+                    // JETZT den Ort bestimmen, nicht erst beim Senden (v0.31):
+                    // Der Vorgang laeuft im Hintergrund, waehrend sie spricht -
+                    // ihre Frage dauert typischerweise drei bis acht Sekunden,
+                    // in denen ein Fix meist laengst da ist. Beim Senden wird
+                    // nur noch abgelesen, was im Zwischenspeicher liegt; die
+                    // muehsam erarbeiteten ~5 s bis zum ersten gesprochenen
+                    // Wort bleiben damit unangetastet.
+                    Standort.anstossen(this)
                     ton(ToneGenerator.TONE_PROP_BEEP)
                     var frage = nimmFrageAufAusStrom()
                     if (frage == null || frage.length() <= 0) {
@@ -804,6 +822,11 @@ class WakeWordService : Service() {
         // der Antwort weitergelauscht werden darf – sonst wuerde seine eigene
         // Stimme das Weckwort ausloesen. Klappt der Strom nicht, laeuft
         // unten der bewaehrte /assistant-Weg.
+        // Was beim Weckwort angestossen wurde, ist jetzt meist fertig. Ist es
+        // das nicht (oder ist die Ortung aus), bleibt der Text leer und der
+        // Server verhaelt sich wie vor v0.31.
+        val ort = Standort.text(this)
+
         meldeStatus("Frage gesendet – Antwort läuft …")
         try {
             val gestreamt = StreamClient.ask(
@@ -811,6 +834,7 @@ class WakeWordService : Service() {
                 text = null, audio = audio, cacheDir = cacheDir,
                 blockiereBisGesprochen = true,
                 stillBeiUnverstanden = ausNachfass,
+                standort = ort,
             )
             if (gestreamt) return
         } catch (t: Throwable) {
@@ -827,6 +851,11 @@ class WakeWordService : Service() {
                     .addFormDataPart("key", key)
                     .addFormDataPart("request_id", requestId)
                 if (e2e) bauer.addFormDataPart("e2e", "1")
+                // Auch der Rueckfall-Weg schickt den Ort mit - sonst waeren die
+                // Empfehlungen ausgerechnet dann ortlos, wenn der Strom klemmt.
+                if (ort.isNotEmpty()) bauer.addFormDataPart(
+                    "standort", if (e2e) Krypto.verschluesselnText(this, ort) else ort
+                )
                 val body = bauer.addFormDataPart(
                         // Endung mitfuehren (seit v0.19 .wav, siehe StreamClient).
                         "audio", audio.name,

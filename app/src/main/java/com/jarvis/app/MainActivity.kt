@@ -198,6 +198,43 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // --- v0.31: Standort mitschicken -----------------------------------
+        // Zwei Schalter muessen an sein: die Android-Berechtigung UND dieser
+        // hier. Tippt sie ihn an, ohne dass die Berechtigung vorliegt, wird
+        // sie danach gefragt; lehnt sie ab, bleibt der Haken einfach aus.
+        val standortSchalter = findViewById<android.widget.CheckBox>(R.id.standortSchalter)
+        standortSchalter.isChecked = Standort.eingeschaltet(this) && Standort.erlaubt(this)
+        standortSchalter.setOnClickListener {
+            if (standortSchalter.isChecked && !Standort.erlaubt(this)) {
+                standortSchalter.isChecked = false
+                requestPermissions(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                    ), 3
+                )
+                answerView.text = "Bitte den Standortzugriff erlauben – danach den Haken erneut setzen."
+                return@setOnClickListener
+            }
+            Standort.schalte(this, standortSchalter.isChecked)
+            if (standortSchalter.isChecked) {
+                Standort.anstossen(this)
+                // Der Lausch-Dienst muss neu starten: Er darf nur dann orten,
+                // wenn er beim Start als ortender Vordergrunddienst angemeldet
+                // wurde (siehe WakeWordService.starteVordergrund).
+                if (prefs.getBoolean("wake_aktiv", false)) {
+                    try {
+                        stopService(Intent(this, WakeWordService::class.java))
+                        ContextCompat.startForegroundService(
+                            this, Intent(this, WakeWordService::class.java)
+                        )
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+            zeigeStandort()
+        }
+
         // --- "Hey Jarvis" im Hintergrund: startet/stoppt den Lausch-Dienst.
         // Seit v0.6 ueber openWakeWord - KEIN Picovoice-AccessKey mehr noetig
         // (Picovoice hat sein kostenloses Konto zum 30.06.2026 abgeschafft).
@@ -243,6 +280,30 @@ class MainActivity : AppCompatActivity() {
                 "Der Dienst-Zustand erscheint unter den Knöpfen."
             statusHandler.removeCallbacks(statusRunnable)
             statusHandler.post(statusRunnable)
+        }
+    }
+
+    /**
+     * Zeigt an, welchen Ort die App gerade kennt - damit im Alltag ohne
+     * Rateraten pruefbar ist, ob die Ortung liefert. Sie sieht hier genau
+     * den Text, der an Jarvis geht.
+     */
+    private fun zeigeStandort() {
+        val feld = findViewById<TextView>(R.id.standortInfo) ?: return
+        val schalter = findViewById<android.widget.CheckBox>(R.id.standortSchalter)
+        schalter?.isChecked = Standort.eingeschaltet(this) && Standort.erlaubt(this)
+        feld.text = when {
+            !Standort.erlaubt(this) -> "Standort: nicht erlaubt – Jarvis fragt unterwegs nach dem Ort."
+            !Standort.eingeschaltet(this) -> "Standort: abgeschaltet."
+            else -> {
+                val ort = Standort.text(this)
+                val alter = Standort.alterMinuten(this)
+                when {
+                    ort.isNotEmpty() && alter <= 0 -> "Standort: $ort (gerade eben)"
+                    ort.isNotEmpty() -> "Standort: $ort (vor $alter Min.)"
+                    else -> "Standort: wird ermittelt …"
+                }
+            }
         }
     }
 
@@ -391,11 +452,16 @@ class MainActivity : AppCompatActivity() {
         // blockweise – bei langen Bildbeschreibungen mehrere Sekunden frueher.
         // Kommt kein einziger Block an, faellt es unten auf /assistant
         // zurueck – die Antwort kann also nie ganz ausbleiben.
+        // v0.31: Was die App an Ort kennt, geht mit - leer, wenn die Ortung
+        // aus oder nicht erlaubt ist (dann fragt Jarvis wie bisher nach).
+        val ort = Standort.text(this)
+
         run {
             val gestreamt = StreamClient.ask(
                 ctx = this, client = client, base = base, key = key,
                 text = text, audio = audio, cacheDir = cacheDir,
                 blockiereBisGesprochen = false, image = image,
+                standort = ort,
                 onText = { laufend -> runOnUiThread { answerView.text = laufend } },
             )
             if (gestreamt) return
@@ -417,6 +483,9 @@ class MainActivity : AppCompatActivity() {
                 if (e2e) bodyBuilder.addFormDataPart("e2e", "1")
                 if (!text.isNullOrEmpty()) bodyBuilder.addFormDataPart(
                     "text", if (e2e) Krypto.verschluesselnText(this, text) else text
+                )
+                if (ort.isNotEmpty()) bodyBuilder.addFormDataPart(
+                    "standort", if (e2e) Krypto.verschluesselnText(this, ort) else ort
                 )
                 if (audio != null) bodyBuilder.addFormDataPart(
                     "audio", "aufnahme.m4a",
@@ -511,6 +580,10 @@ class MainActivity : AppCompatActivity() {
         }
         statusHandler.removeCallbacks(statusRunnable)
         statusHandler.post(statusRunnable)
+        // Beim Oeffnen der App gleich einen frischen Ort anstossen (v0.31) -
+        // dann steht er schon bereit, wenn sie direkt danach etwas fragt.
+        Standort.anstossen(this)
+        zeigeStandort()
         zeigePostfach()
     }
 

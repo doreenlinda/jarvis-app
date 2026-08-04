@@ -20,6 +20,26 @@
          Bildschirm fiel die Weckwort-Erkennung sonst zeitweise aus
          (Doreen, 31.07.2026). Normale Berechtigung, keine Nachfrage. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- v0.31: Standort mitschicken, damit Empfehlungen unterwegs am
+         richtigen Ort suchen ("egal an welchem Ort ich bin", 04.08.2026).
+         FINE = strassengenau (ihre Entscheidung), COARSE als Rueckfall, wenn
+         sie nur den ungefaehren Ort erlaubt - daraus wird immerhin noch der
+         Stadtteil. Ohne die Erlaubnis geht schlicht kein Ort mit, und alles
+         verhaelt sich wie vor v0.31.
+         BEWUSST NICHT beantragt: ACCESS_BACKGROUND_LOCATION ("immer
+         zulassen"). Die Folge ist eine einzige, verschmerzbare Einschraenkung:
+         Direkt nach einem Handy-Neustart, wenn der Lausch-Dienst von selbst
+         hochfaehrt und die App noch nie offen war, bekommt er keinen Ort.
+         Einmal die App oeffnen genuegt (onResume startet den Dienst ohnehin
+         neu). Dafuer bleibt ihr die deutlich weiter reichende Dauer-Erlaubnis
+         erspart. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Ab Android 14 muss ein Vordergrunddienst, der ortet, das ankuendigen.
+         Der Dienst setzt den Typ zur LAUFZEIT nur dann, wenn die Erlaubnis
+         auch erteilt ist - sonst wuerde startForeground abstuerzen und das
+         Weckwort waere tot (siehe WakeWordService.starteVordergrund). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <application
         android:allowBackup="true"
@@ -41,7 +61,7 @@
         <service
             android:name=".WakeWordService"
             android:exported="false"
-            android:foregroundServiceType="microphone" />
+            android:foregroundServiceType="microphone|location" />
 
         <!-- Faehrt das "Hey Jarvis"-Lauschen nach Handy-Neustart und nach
              einem App-Update von selbst wieder hoch. Ein App-Update beendete
