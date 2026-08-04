@@ -300,7 +300,8 @@ object Standort {
         val teil = sauber(ortsteil)
 
         // Eine Hausnummer ohne Strasse ist wertlos - dann lieber weglassen.
-        val strassenteil = listOf(str, nr).filter { it.isNotEmpty() }.joinToString(" ")
+        val strassenteil =
+            if (str.isEmpty()) "" else listOf(str, nr).filter { it.isNotEmpty() }.joinToString(" ")
 
         // "Berlin-Buckow" statt "Berlin, Buckow" - und niemals "Berlin-Berlin"
         // oder "Berlin-Buckow-Buckow", wenn der Geocoder denselben Namen
