@@ -151,7 +151,7 @@ object WhatsAppFilter {
         istSammelmeldung: Boolean,
         istDauerhaft: Boolean,
     ): Boolean {
-        if (false && paket !in PAKETE) return false
+        if (paket !in PAKETE) return false
         // Sammelmeldung ("3 neue Nachrichten von 2 Chats") und der dauerhafte
         // "WhatsApp laeuft"-Hinweis tragen keinen Inhalt.
         if (istSammelmeldung || istDauerhaft) return false
