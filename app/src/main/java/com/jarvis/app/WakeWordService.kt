@@ -587,14 +587,50 @@ class WakeWordService : Service() {
         }
     }
 
+    /**
+     * `art == "dringend"` ist der einzige Anlass, bei dem das Handy wirklich
+     * KLINGELT (v0.32): eine Kundin sagt per WhatsApp einen Termin von heute
+     * oder morgen ab. Der Server entscheidet das - hier wird nur ausgefuehrt.
+     *
+     * Der Wecker-Kanal ist dabei der Kern und kein Detail: Doreens Handy ist
+     * dauerhaft stumm. Ueber den Benachrichtigungskanal (bis v0.16) wie ueber
+     * den Medienkanal (v0.17) blieb schon der Weckwort-Piep unhoerbar - beides
+     * ist an ihrem Geraet nachgewiesen. Nur der Wecker klingt auch dann.
+     */
     private fun melde(n: Postfach.Nachricht) {
+        val dringend = n.art == "dringend"
         try {
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val kanalId = "jarvis_nachrichten"
+            val kanalId = if (dringend) "jarvis_dringend" else "jarvis_nachrichten"
             if (Build.VERSION.SDK_INT >= 26) {
-                nm.createNotificationChannel(
-                    NotificationChannel(kanalId, "Jarvis meldet sich", NotificationManager.IMPORTANCE_DEFAULT)
-                )
+                if (dringend) {
+                    val kanal = NotificationChannel(
+                        kanalId, "Dringend – Terminabsage",
+                        NotificationManager.IMPORTANCE_HIGH
+                    )
+                    kanal.setSound(
+                        android.media.RingtoneManager.getDefaultUri(
+                            android.media.RingtoneManager.TYPE_ALARM
+                        ),
+                        android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                            .setContentType(
+                                android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION
+                            )
+                            .build()
+                    )
+                    kanal.enableVibration(true)
+                    // Auch bei "Nicht stoeren" durchlassen. Fehlt die
+                    // Richtlinien-Erlaubnis, ignoriert Android das
+                    // stillschweigend - dann klingelt es eben nur ausserhalb
+                    // von "Nicht stoeren", statt dass etwas abstuerzt.
+                    try { kanal.setBypassDnd(true) } catch (_: Throwable) {}
+                    nm.createNotificationChannel(kanal)
+                } else {
+                    nm.createNotificationChannel(
+                        NotificationChannel(kanalId, "Jarvis meldet sich", NotificationManager.IMPORTANCE_DEFAULT)
+                    )
+                }
             }
             val oeffnen = android.app.PendingIntent.getActivity(
                 this, 0,
@@ -604,15 +640,53 @@ class WakeWordService : Service() {
             )
             val bau = NotificationCompat.Builder(this, kanalId)
                 .setContentTitle(n.titel)
-                // BEWUSST kein Inhalt - siehe Begruendung oben.
+                // BEWUSST kein Inhalt - siehe Begruendung oben. Das gilt
+                // gerade bei "dringend": Der Titel nennt nur den Absender,
+                // die Absage selbst steht in der App.
                 .setContentText("In der App öffnen")
                 .setSmallIcon(android.R.drawable.ic_dialog_email)
                 .setContentIntent(oeffnen)
                 .setAutoCancel(true)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            if (dringend) {
+                bau.setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    // Vollbild: holt sie auch dann heran, wenn der Bildschirm
+                    // aus ist. Wird die Erlaubnis verweigert, faellt Android
+                    // von selbst auf eine normale Kopfzeilen-Meldung zurueck.
+                    .setFullScreenIntent(oeffnen, true)
+            }
             nm.notify(n.id.toInt().coerceAtLeast(2), bau.build())
+            if (dringend) sprichDringend(n)
         } catch (t: Throwable) {
             meldeStatus("FEHLER bei der Benachrichtigung: $t")
+        }
+    }
+
+    /**
+     * Liest die dringende Meldung ueber den WECKER-Ausgang vor - damit sie
+     * hoerbar ist, ohne dass Doreen zum Handy greifen muss (sie faehrt oft
+     * gerade Auto, wenn eine Absage kommt).
+     *
+     * Scheitert es, ist das kein Beinbruch: Geklingelt und vibriert hat es
+     * dann trotzdem, und der Text steht in der App.
+     */
+    private fun sprichDringend(n: Postfach.Nachricht) {
+        val datei = n.audioDatei ?: return
+        try {
+            val mp = MediaPlayer()
+            mp.setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            mp.setDataSource(datei)
+            mp.setOnCompletionListener { it.release() }
+            mp.prepare()
+            mp.start()
+        } catch (t: Throwable) {
+            meldeStatus("Dringende Meldung konnte nicht vorgelesen werden: $t")
         }
     }
 

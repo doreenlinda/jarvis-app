@@ -136,6 +136,29 @@
             android:textStyle="italic"
             android:text="" />
 
+        <!-- v0.32: WhatsApp mitlesen. Wie beim Standort zwei Schalter - der
+             Systemzugriff auf Benachrichtigungen UND dieser hier, damit sich
+             das Mitlesen im Vorbeigehen abstellen laesst, ohne die
+             Systemberechtigung zurueckzunehmen. Darunter steht, ob der
+             Zugriff ueberhaupt erteilt ist; ohne diese Anzeige waere im
+             Alltag nicht erkennbar, warum nichts ankommt. -->
+        <CheckBox
+            android:id="@+id/whatsappSchalter"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:textSize="14sp"
+            android:text="WhatsApp mitlesen (Terminabsagen von Kundinnen)" />
+
+        <TextView
+            android:id="@+id/whatsappInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="2dp"
+            android:textSize="13sp"
+            android:textStyle="italic"
+            android:text="" />
+
         <TextView
             android:id="@+id/wakeStatusView"
             android:layout_width="match_parent"

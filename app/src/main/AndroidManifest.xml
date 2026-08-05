@@ -75,6 +75,26 @@
             </intent-filter>
         </receiver>
 
+        <!-- v0.32: Liest eingehende WhatsApp-Nachrichten als Benachrichtigung
+             mit und schickt sie verschluesselt an Jarvis.
+             BEWUSST NICHT ueber Metas Cloud API: Eine dort registrierte
+             Nummer laesst sich nicht mehr mit der normalen WhatsApp-App
+             nutzen, und zurueck geht es nicht.
+             Die Berechtigung ist unter Android ALLES ODER NICHTS - dieser
+             Dienst koennte technisch jede Benachrichtigung sehen. Die
+             Beschraenkung auf WhatsApp steckt im Code (WhatsAppFilter), und
+             zusaetzlich gibt es einen eigenen Schalter in der App. Erteilt
+             wird der Zugriff ausschliesslich von Hand in den
+             Systemeinstellungen. -->
+        <service
+            android:name=".WhatsAppLauscher"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Stellt der System-Kamera eine sichere Ziel-Datei fuer das Foto
              bereit (volle Aufloesung statt Mini-Vorschaubild). -->
         <provider

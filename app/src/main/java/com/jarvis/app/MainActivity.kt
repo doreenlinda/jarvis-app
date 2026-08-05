@@ -235,6 +235,33 @@ class MainActivity : AppCompatActivity() {
             zeigeStandort()
         }
 
+        // --- v0.32: WhatsApp mitlesen --------------------------------------
+        // Gleiche Bauart wie der Standort-Schalter: Der SYSTEMzugriff auf
+        // Benachrichtigungen laesst sich nur in den Android-Einstellungen
+        // erteilen, deshalb fuehrt der Haken dorthin, wenn er noch fehlt.
+        //
+        // Die Berechtigung ist ALLES ODER NICHTS - die App koennte damit
+        // technisch jede Benachrichtigung lesen. Beschraenkt wird sie im Code
+        // (WhatsAppFilter), und dieser Haken ist der schnelle Ausschalter.
+        val whatsappSchalter = findViewById<android.widget.CheckBox>(R.id.whatsappSchalter)
+        zeigeWhatsAppStatus()
+
+        whatsappSchalter.setOnClickListener {
+            if (whatsappSchalter.isChecked && !WhatsAppLauscher.zugriffErteilt(this)) {
+                whatsappSchalter.isChecked = false
+                try {
+                    startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+                    answerView.text =
+                        "Bitte Jarvis in der Liste freigeben – danach den Haken erneut setzen."
+                } catch (e: Exception) {
+                    answerView.text = "Einstellungen nicht erreichbar: ${e.message}"
+                }
+                return@setOnClickListener
+            }
+            WhatsAppLauscher.setzeSchalter(this, whatsappSchalter.isChecked)
+            zeigeWhatsAppStatus()
+        }
+
         // --- "Hey Jarvis" im Hintergrund: startet/stoppt den Lausch-Dienst.
         // Seit v0.6 ueber openWakeWord - KEIN Picovoice-AccessKey mehr noetig
         // (Picovoice hat sein kostenloses Konto zum 30.06.2026 abgeschafft).
@@ -584,7 +611,26 @@ class MainActivity : AppCompatActivity() {
         // dann steht er schon bereit, wenn sie direkt danach etwas fragt.
         Standort.anstossen(this)
         zeigeStandort()
+        // Der Benachrichtigungs-Zugriff wird in den SYSTEMeinstellungen
+        // erteilt - beim Zurueckkommen muss der Haken das widerspiegeln,
+        // sonst sieht es aus, als haette das Freigeben nichts bewirkt.
+        zeigeWhatsAppStatus()
         zeigePostfach()
+    }
+
+    /** Haken und Hinweis zum WhatsApp-Mitlesen auf den aktuellen Stand bringen. */
+    private fun zeigeWhatsAppStatus() {
+        val schalter = findViewById<android.widget.CheckBox>(R.id.whatsappSchalter) ?: return
+        val info = findViewById<TextView>(R.id.whatsappInfo) ?: return
+        val erteilt = WhatsAppLauscher.zugriffErteilt(this)
+        schalter.isChecked = WhatsAppLauscher.istEingeschaltet(this) && erteilt
+        info.text = when {
+            !erteilt -> "Zugriff auf Benachrichtigungen fehlt noch."
+            WhatsAppLauscher.istEingeschaltet(this) ->
+                "Liest eingehende WhatsApp-Nachrichten mit. Sagt eine Kundin " +
+                    "einen Termin von heute oder morgen ab, klingelt es."
+            else -> "Zugriff erteilt, Mitlesen ist aus."
+        }
     }
 
     /**
