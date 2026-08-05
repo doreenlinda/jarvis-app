@@ -1,6 +1,7 @@
 package com.jarvis.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
@@ -39,6 +40,20 @@ class DringendAusgabeTest {
             Ausgabe.INHALT,
             DringendAusgabe.waehle(inhaltVorlesen = true, hatInhaltsTon = true)
         )
+    }
+
+    @Test
+    fun dringendTraegtEinAnderesSymbolAlsNormaleNachrichten() {
+        // Ihre Anforderung woertlich: "Ein Warn-Symbol, das sich von normalen
+        // Nachrichten unterscheidet, waere schon gut." Dieselbe Anzeige kommt
+        // auch fuer Briefings und Manus-Ergebnisse - auf einen Blick
+        // unterscheidbar zu sein ist der ganze Zweck.
+        val dringend = Symbole.fuer("dringend")
+        assertEquals(android.R.drawable.stat_sys_warning, dringend)
+        listOf("briefing", "manus", "einkaufsliste", "link", "").forEach { art ->
+            assertNotEquals("Art '$art' darf nicht wie dringend aussehen",
+                dringend, Symbole.fuer(art))
+        }
     }
 
     @Test

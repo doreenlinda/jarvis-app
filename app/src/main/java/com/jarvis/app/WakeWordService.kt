@@ -650,7 +650,7 @@ class WakeWordService : Service() {
                 // gerade bei "dringend": Der Titel nennt nur den Absender,
                 // die Absage selbst steht in der App.
                 .setContentText("In der App öffnen")
-                .setSmallIcon(android.R.drawable.ic_dialog_email)
+                .setSmallIcon(Symbole.fuer(n.art))
                 .setContentIntent(oeffnen)
                 .setAutoCancel(true)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)

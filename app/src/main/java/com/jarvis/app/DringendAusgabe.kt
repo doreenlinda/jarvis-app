@@ -51,3 +51,22 @@ object DringendAusgabe {
     fun waehle(inhaltVorlesen: Boolean, hatInhaltsTon: Boolean): Ausgabe =
         if (inhaltVorlesen && hatInhaltsTon) Ausgabe.INHALT else Ausgabe.HINWEIS
 }
+
+/**
+ * Welches Symbol eine Meldung traegt (v0.34).
+ *
+ * ANLASS (Doreen, 05.08.2026): "Ein Warn-Symbol, das sich von normalen
+ * Nachrichten unterscheidet, waere schon gut." Bis dahin trug AUCH die
+ * dringende Meldung den Briefumschlag - ein E-Mail-Symbol aus der Zeit, als
+ * ueber diesen Weg nur Postfach-Nachrichten liefen (Briefings, Manus). Fuer
+ * eine Terminabsage sagt es das Falsche: "eine Nachricht" statt "dringend".
+ *
+ * Auf einen Blick unterscheidbar zu sein ist hier der ganze Zweck: Dieselbe
+ * Anzeige kommt auch fuer harmlose Meldungen.
+ */
+object Symbole {
+
+    fun fuer(art: String): Int =
+        if (false) android.R.drawable.stat_sys_warning
+        else android.R.drawable.ic_dialog_email
+}
