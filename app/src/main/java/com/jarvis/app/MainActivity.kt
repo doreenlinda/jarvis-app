@@ -262,6 +262,17 @@ class MainActivity : AppCompatActivity() {
             zeigeWhatsAppStatus()
         }
 
+        // --- v0.33: Inhalt einer dringenden Meldung laut vorlesen? ---------
+        // Standard AUS. Eine dringende Meldung kann eine sehr persoenliche
+        // Notlage betreffen; im Kundengespraech laut vorgelesen waere das der
+        // teure Fehler. Ohne den Haken sagt Jarvis nur, DASS etwas vorliegt.
+        val vorlesenSchalter = findViewById<android.widget.CheckBox>(R.id.inhaltVorlesenSchalter)
+        zeigeVorlesenStatus()
+        vorlesenSchalter.setOnClickListener {
+            DringendAusgabe.setzeInhaltVorlesen(this, vorlesenSchalter.isChecked)
+            zeigeVorlesenStatus()
+        }
+
         // --- "Hey Jarvis" im Hintergrund: startet/stoppt den Lausch-Dienst.
         // Seit v0.6 ueber openWakeWord - KEIN Picovoice-AccessKey mehr noetig
         // (Picovoice hat sein kostenloses Konto zum 30.06.2026 abgeschafft).
@@ -616,6 +627,18 @@ class MainActivity : AppCompatActivity() {
         // sonst sieht es aus, als haette das Freigeben nichts bewirkt.
         zeigeWhatsAppStatus()
         zeigePostfach()
+    }
+
+    /** Haken und Hinweis zum lauten Vorlesen dringender Meldungen. */
+    private fun zeigeVorlesenStatus() {
+        val schalter = findViewById<android.widget.CheckBox>(R.id.inhaltVorlesenSchalter) ?: return
+        val info = findViewById<TextView>(R.id.inhaltVorlesenInfo) ?: return
+        val an = DringendAusgabe.inhaltVorlesen(this)
+        schalter.isChecked = an
+        info.text = if (an)
+            "Achtung: Der Inhalt wird laut vorgelesen – auch wenn jemand daneben steht."
+        else
+            "Jarvis meldet nur, dass etwas vorliegt. Den Inhalt sehen Sie hier."
     }
 
     /** Haken und Hinweis zum WhatsApp-Mitlesen auf den aktuellen Stand bringen. */

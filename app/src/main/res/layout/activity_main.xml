@@ -159,6 +159,27 @@
             android:textStyle="italic"
             android:text="" />
 
+        <!-- v0.33: Standardmaessig AUS. Eine dringende Meldung kann eine sehr
+             persoenliche Notlage betreffen - laut vorgelesen im Kundengespraech
+             waere das der teure Fehler. Wer den Haken im Auto setzt und
+             vergisst zurueckzustellen, faellt in den sicheren Zustand. -->
+        <CheckBox
+            android:id="@+id/inhaltVorlesenSchalter"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textSize="14sp"
+            android:text="Dringendes laut vorlesen (nur wenn Sie allein sind)" />
+
+        <TextView
+            android:id="@+id/inhaltVorlesenInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="2dp"
+            android:textSize="13sp"
+            android:textStyle="italic"
+            android:text="" />
+
         <TextView
             android:id="@+id/wakeStatusView"
             android:layout_width="match_parent"

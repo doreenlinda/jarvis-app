@@ -146,6 +146,12 @@ class WakeWordService : Service() {
         // eine winzige Anfrage pro Minute faellt neben dem dauerhaft offenen
         // Mikrofon nicht ins Gewicht.
         private const val NACHSEHEN_INTERVALL_MS = 60_000L
+
+        /**
+         * Laenge des Wecktons vor der Ansage. Lang genug, um aus dem
+         * Nebenraum zu holen, kurz genug, um nicht zu nerven.
+         */
+        private const val WECKTON_MS = 1200
     }
 
     @Volatile private var aktiv = false
@@ -664,24 +670,73 @@ class WakeWordService : Service() {
     }
 
     /**
-     * Liest die dringende Meldung ueber den WECKER-Ausgang vor - damit sie
-     * hoerbar ist, ohne dass Doreen zum Handy greifen muss (sie faehrt oft
-     * gerade Auto, wenn eine Absage kommt).
+     * Weckton und Ansage bei einer dringenden Meldung - beides ueber den
+     * WECKER-Ausgang.
      *
-     * Scheitert es, ist das kein Beinbruch: Geklingelt und vibriert hat es
-     * dann trotzdem, und der Text steht in der App.
+     * WARUM DIE APP DEN TON SELBST ABSPIELT (gemessen am 05.08.2026): Der
+     * Ton des Benachrichtigungs-KANALS kam an ihrem Geraet ueberhaupt nicht
+     * durch - auch nicht ohne Sprachausgabe und bei ausgeschaltetem "Nicht
+     * stoeren" (zwei Testlaeufe, beide nur Vibration). Samsung schaltet den
+     * Benachrichtigungston bei stummem Handy offenbar ab, unabhaengig davon,
+     * dass der Kanal als Wecker deklariert ist. Was nachweislich FUNKTIONIERT,
+     * ist Ton, den die App selbst ueber den Wecker-Ausgang abspielt - genau
+     * so kam Jarvis' Stimme durch. Deshalb dieser Weg.
+     *
+     * WAS GESAGT WIRD, ist bewusst eingeschraenkt: standardmaessig nur ein
+     * neutraler Hinweis ohne Inhalt (siehe DringendAusgabe). Scheitert etwas,
+     * ist das kein Beinbruch - vibriert und angezeigt hat es trotzdem.
      */
     private fun sprichDringend(n: Postfach.Nachricht) {
-        val datei = n.audioDatei ?: return
+        try {
+            weckton()
+            val was = DringendAusgabe.waehle(
+                inhaltVorlesen = DringendAusgabe.inhaltVorlesen(this),
+                hatInhaltsTon = n.audioDatei != null,
+            )
+            // Kurz warten, damit der Weckton nicht von der Stimme
+            // ueberlagert wird - beide laufen ueber denselben Ausgang.
+            Thread.sleep(WECKTON_MS + 400L)
+            if (was == Ausgabe.INHALT) spieleDatei(n.audioDatei!!)
+            else spieleHinweis()
+        } catch (t: Throwable) {
+            meldeStatus("Dringende Meldung konnte nicht ausgegeben werden: $t")
+        }
+    }
+
+    /** Kurzer, lauter Signalton auf dem Wecker-Ausgang. */
+    private fun weckton() {
+        try {
+            val tg = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+            tg.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, WECKTON_MS)
+            // Erst nach dem Ton freigeben, sonst bricht er ab.
+            android.os.Handler(android.os.Looper.getMainLooper())
+                .postDelayed({ try { tg.release() } catch (_: Throwable) {} }, WECKTON_MS + 300L)
+        } catch (t: Throwable) {
+            meldeStatus("Weckton nicht moeglich: $t")
+        }
+    }
+
+    /** Der neutrale Hinweis - liegt als Asset bei, damit er ohne Netz da ist. */
+    private fun spieleHinweis() {
+        try {
+            assets.openFd("dringend_hinweis.mp3").use { fd ->
+                val mp = MediaPlayer()
+                mp.setAudioAttributes(weckerAusgang())
+                mp.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
+                mp.setOnCompletionListener { it.release() }
+                mp.prepare()
+                mp.start()
+            }
+        } catch (t: Throwable) {
+            meldeStatus("Hinweiston nicht abspielbar: $t")
+        }
+    }
+
+    private fun spieleDatei(pfad: String) {
         try {
             val mp = MediaPlayer()
-            mp.setAudioAttributes(
-                android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
-            )
-            mp.setDataSource(datei)
+            mp.setAudioAttributes(weckerAusgang())
+            mp.setDataSource(pfad)
             mp.setOnCompletionListener { it.release() }
             mp.prepare()
             mp.start()
@@ -689,6 +744,11 @@ class WakeWordService : Service() {
             meldeStatus("Dringende Meldung konnte nicht vorgelesen werden: $t")
         }
     }
+
+    private fun weckerAusgang() = android.media.AudioAttributes.Builder()
+        .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
 
     private fun gibMikrofonFrei() {
         val rec = audioRecord ?: return
