@@ -49,5 +49,5 @@ object DringendAusgabe {
      * Stille, sonst waere nur die Vibration da.
      */
     fun waehle(inhaltVorlesen: Boolean, hatInhaltsTon: Boolean): Ausgabe =
-        if (hatInhaltsTon) Ausgabe.INHALT else Ausgabe.HINWEIS
+        if (inhaltVorlesen && hatInhaltsTon) Ausgabe.INHALT else Ausgabe.HINWEIS
 }
