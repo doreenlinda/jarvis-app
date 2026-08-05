@@ -635,8 +635,14 @@ class MainActivity : AppCompatActivity() {
         val info = findViewById<TextView>(R.id.inhaltVorlesenInfo) ?: return
         val an = DringendAusgabe.inhaltVorlesen(this)
         schalter.isChecked = an
+        // Die Beschriftung sagt, WAS der Schalter tut; diese Zeile, was
+        // gerade PASSIERT. Frueher stand in der Beschriftung "(nur wenn Sie
+        // allein sind)" - das las sich wie eine Bedingung, die die App
+        // pruefen wuerde, und stand im Widerspruch zur Warnung darunter.
+        // Ob jemand danebensteht, kann die App nicht wissen.
         info.text = if (an)
-            "Achtung: Der Inhalt wird laut vorgelesen – auch wenn jemand daneben steht."
+            "Achtung: Der Inhalt wird jedes Mal laut vorgelesen – auch wenn " +
+                "jemand daneben steht. Die App kann das nicht erkennen."
         else
             "Jarvis meldet nur, dass etwas vorliegt. Den Inhalt sehen Sie hier."
     }
