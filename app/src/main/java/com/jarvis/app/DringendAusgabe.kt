@@ -67,6 +67,6 @@ object DringendAusgabe {
 object Symbole {
 
     fun fuer(art: String): Int =
-        if (false) android.R.drawable.stat_sys_warning
+        if (art == "dringend") android.R.drawable.stat_sys_warning
         else android.R.drawable.ic_dialog_email
 }
