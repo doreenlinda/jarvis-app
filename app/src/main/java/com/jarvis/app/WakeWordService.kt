@@ -73,7 +73,27 @@ class WakeWordService : Service() {
         // "Hey Jarvis" haelt den Wert ueber mehrere Bloecke hoch). 0,55 mit
         // zwei Bestaetigungen ist strenger als die urspruenglichen 0,5 ohne,
         // mit denen die neun Fehlalarme vom 26.07. entstanden.
-        private const val SCHWELLE = 0.55f
+        //
+        // 07.08.2026: 0,55 -> 0,45, auf ihre Meldung "ich muss ihn wieder
+        // mehrfach rufen". BEWUSST NUR DIESE EINE ZAHL geaendert (ihre
+        // Vorgabe: "ohne was anderes zu verstellen") - BESTAETIGUNGEN,
+        // Vorlauf, Stille-Erkennung und Nachfass-Fenster bleiben unberuehrt.
+        //
+        // VORHER GEPRUEFT, ob es ueberhaupt die Schwelle ist: Der
+        // Orchestrator protokolliert seit dem 31.07. Luecken im
+        // Minuten-Herzschlag der App (_melde_lauschluecke). Am 07.08. gab es
+        // KEINE einzige Luecke, 59 Abrufe pro Stunde - der Dienst lief also
+        // durchgehend und hatte Rechenzeit. Damit ist der zweite moegliche
+        // Grund (eingeschlafener Dienst, vgl. den Wake-Lock-Fund vom 31.07.)
+        // ausgeschlossen, und das Drehen an der Schwelle ist begruendet.
+        //
+        // Warum 0,45 vertretbar ist: Mit zwei Bestaetigungen ist das immer
+        // noch naeher an der strengen Seite als die urspruenglichen 0,5 OHNE
+        // Bestaetigung. Und ein Fehlalarm kostet heute deutlich weniger als
+        // im Juli - die Echo-Erkennung (05.08.) verwirft leere Aufnahmen,
+        // die Abspann-Erkennung erfundene Untertitel, und seit v0.30 gibt es
+        // hoechstens EINE Nachfrage je Zuruf statt einer offenen Kette.
+        private const val SCHWELLE = 0.45f
         // Zusaetzlich muss der Wert in MEHREREN AUFEINANDERFOLGENDEN Bloecken
         // ueber der Schwelle liegen. Ein einzelner Ausschlag reicht nicht -
         // genau so sehen Fehlalarme aus (ein Laut im Gespraech trifft zufaellig
