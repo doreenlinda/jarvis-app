@@ -3,6 +3,7 @@ package com.jarvis.app
 import android.app.Notification
 import android.content.Context
 import android.service.notification.NotificationListenerService
+import android.service.notification.NotificationListenerService.RankingMap
 import android.service.notification.StatusBarNotification
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -39,6 +40,10 @@ class WhatsAppLauscher : NotificationListenerService() {
         .readTimeout(90, TimeUnit.SECONDS)
         .build()
 
+    /** Wann kam welche Benachrichtigung an? Nur fuer die Lebensdauer-Messung;
+     *  Schluessel ist Androids Notification-Key, kein Inhalt. */
+    private val startZeiten = LinkedHashMap<String, Long>()
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val n = sbn ?: return
         if (!istEingeschaltet(applicationContext)) return
@@ -63,10 +68,91 @@ class WhatsAppLauscher : NotificationListenerService() {
             )
         ) return
 
-        senden(titel, text, istGruppe)
+        // MESSUNG (v0.37, siehe whatsapp_diagnose.py auf dem Server): Traegt
+        // diese Benachrichtigung eine Direct-Reply-Aktion, und wie lange lebt
+        // sie? Beides entscheidet, ob "auf WhatsApp antworten" tragen kann.
+        // Hier wird NUR gemessen - die Aktion wird weder gespeichert noch
+        // ausgeloest.
+        val antwortbar = hatAntwortAktion(n.notification)
+        merkeStart(n.key)
+
+        senden(titel, text, istGruppe, antwortbar)
     }
 
-    private fun senden(titel: String, text: String, istGruppe: Boolean) {
+    /**
+     * Ist eine Direct-Reply-Aktion vorhanden? Das ist derselbe Mechanismus,
+     * mit dem eine Smartwatch antwortet: eine Aktion mit RemoteInput.
+     *
+     * Bewusst nur PRUEFEN, nicht festhalten. Ein gespeicherter PendingIntent
+     * waere bereits die halbe Sendefunktion - und solange nicht gemessen ist,
+     * ob der Weg traegt, hat eine unwiderrufliche Aktion an einer Messung
+     * nichts verloren.
+     */
+    private fun hatAntwortAktion(notification: Notification?): Boolean = try {
+        notification?.actions?.any { aktion ->
+            aktion?.remoteInputs?.any { it != null } == true
+        } == true
+    } catch (_: Throwable) {
+        false
+    }
+
+    override fun onNotificationRemoved(
+        sbn: StatusBarNotification?,
+        rankingMap: RankingMap?,
+        reason: Int,
+    ) {
+        val n = sbn ?: return
+        // Denselben Schalter beachten wie beim Mitlesen: Ist WhatsApp in der
+        // App abgeschaltet, wird auch nicht gemessen.
+        if (!istEingeschaltet(applicationContext)) return
+        if ((n.packageName ?: "") !in WhatsAppFilter.pakete()) return
+        val start = startZeiten.remove(n.key) ?: return
+        val sekunden = (System.currentTimeMillis() - start) / 1000
+        meldeEnde(sekunden, reason)
+    }
+
+    private fun merkeStart(key: String?) {
+        val k = key ?: return
+        // Obergrenze, damit die Tabelle nicht unbegrenzt waechst, falls
+        // Entfernen-Ereignisse ausbleiben (etwa nach einem Neustart des
+        // Dienstes). Aelteste Eintraege fallen zuerst raus.
+        if (startZeiten.size > 200) {
+            startZeiten.keys.take(100).forEach { startZeiten.remove(it) }
+        }
+        startZeiten[k] = System.currentTimeMillis()
+    }
+
+    private fun meldeEnde(sekunden: Long, grund: Int) {
+        val ctx = applicationContext
+        val prefs = ctx.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
+        val basis = (prefs.getString("url", "") ?: "").trim().trimEnd('/')
+        val key = prefs.getString("key", "") ?: ""
+        if (basis.isEmpty() || key.isEmpty()) return
+        thread {
+            try {
+                // Hier gehen NUR eine Dauer und ein Grundcode raus, kein
+                // Inhalt und kein Absender - deshalb auch nichts zu
+                // verschluesseln.
+                client.newCall(
+                    Request.Builder()
+                        .url("$basis/whatsapp-diagnose")
+                        .addHeader("ngrok-skip-browser-warning", "true")
+                        .post(
+                            FormBody.Builder()
+                                .add("key", key)
+                                .add("lebensdauer_s", sekunden.toString())
+                                .add("grund", grund.toString())
+                                .build()
+                        )
+                        .build()
+                ).execute().close()
+            } catch (_: Throwable) {
+                // Eine verlorene Messzeile ist folgenlos.
+            }
+        }
+    }
+
+    private fun senden(titel: String, text: String, istGruppe: Boolean, antwortbar: Boolean) {
         val ctx = applicationContext
         val prefs = ctx.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
         val basis = (prefs.getString("url", "") ?: "").trim().trimEnd('/')
@@ -81,6 +167,7 @@ class WhatsAppLauscher : NotificationListenerService() {
                     .add("absender", if (e2e) Krypto.verschluesselnText(ctx,titel) else titel)
                     .add("text", if (e2e) Krypto.verschluesselnText(ctx,text) else text)
                     .add("gruppe", if (istGruppe) "1" else "0")
+                    .add("antwortbar", if (antwortbar) "1" else "0")
                 if (e2e) bau.add("e2e", "1")
                 client.newCall(
                     Request.Builder()
@@ -131,6 +218,10 @@ object WhatsAppFilter {
 
     /** WhatsApp und WhatsApp Business - sonst nichts. */
     private val PAKETE = setOf("com.whatsapp", "com.whatsapp.w4b")
+
+    /** Damit auch die Lebensdauer-Messung genau dieselbe Liste benutzt und
+     *  nicht irgendwann eine zweite, abweichende Kopie entsteht. */
+    fun pakete(): Set<String> = PAKETE
 
     /**
      * Benachrichtigungen, die gar keine Nachricht sind. WhatsApp zeigt
