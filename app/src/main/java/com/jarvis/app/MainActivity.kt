@@ -259,6 +259,14 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             WhatsAppLauscher.setzeSchalter(this, whatsappSchalter.isChecked)
+            // MESSUNG (v0.38): Ohne Lese-Recht auf Audio kann die Probe nicht
+            // feststellen, ob die App an eine Sprachnachricht heraenkaeme -
+            // sie meldete dann immer nur "keine Berechtigung", und die Frage
+            // bliebe offen. Deshalb hier EINMAL fragen, wenn sie das
+            // Mitlesen einschaltet. Lehnt sie ab, laeuft alles unveraendert
+            // weiter: Die Messung meldet den Zustand, und das Mitlesen
+            // haengt nicht daran.
+            if (whatsappSchalter.isChecked) frageAudioRecht()
             zeigeWhatsAppStatus()
         }
 
@@ -645,6 +653,28 @@ class MainActivity : AppCompatActivity() {
                 "jemand daneben steht. Die App kann das nicht erkennen."
         else
             "Jarvis meldet nur, dass etwas vorliegt. Den Inhalt sehen Sie hier."
+    }
+
+    /**
+     * Einmal nach dem Lese-Recht fuer Audio fragen (v0.38, nur fuer die
+     * Sprachnachrichten-MESSUNG).
+     *
+     * Ohne dieses Recht kann die Probe nicht unterscheiden, ob WhatsApps
+     * Ordner unerreichbar IST oder ob nur uns die Berechtigung fehlt - die
+     * Messung waere wertlos. Eine Ablehnung ist folgenlos: Es wird dann
+     * "berechtigung=nein" gemeldet, und Mitlesen, Antworten und alles
+     * uebrige laufen unveraendert.
+     */
+    private fun frageAudioRecht() {
+        val recht = if (Build.VERSION.SDK_INT >= 33) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            @Suppress("DEPRECATION")
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (checkSelfPermission(recht) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(recht), 4)
+        }
     }
 
     /** Haken und Hinweis zum WhatsApp-Mitlesen auf den aktuellen Stand bringen. */

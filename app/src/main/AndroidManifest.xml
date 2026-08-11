@@ -40,6 +40,20 @@
          auch erteilt ist - sonst wuerde startForeground abstuerzen und das
          Weckwort waere tot (siehe WakeWordService.starteVordergrund). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- v0.38, NUR fuer die Sprachnachrichten-MESSUNG (SprachnachrichtProbe):
+         33 % ihrer WhatsApp-Nachrichten sind Sprachnachrichten und heute
+         blind. Ob sie sich lokal transkribieren lassen, haengt an einer
+         Frage, die nur auf dem Geraet zu beantworten ist: Darf diese App in
+         WhatsApps Medienordner lesen? Ohne Lese-Recht koennte die Probe
+         nicht unterscheiden, ob der Ordner unerreichbar IST oder ob nur uns
+         die Erlaubnis fehlt - die Messung waere wertlos.
+         Es wird KEINE Datei gelesen und KEIN Ton uebertragen: gemessen wird,
+         ob der Ordner sichtbar ist und wie viele Dateien darin liegen.
+         Lehnt sie ab, laeuft alles unveraendert weiter. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
 
     <application
         android:allowBackup="true"

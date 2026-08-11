@@ -232,6 +232,38 @@ object StreamClient {
                             }
                             bloecke++
                         }
+                        // WHATSAPP-ANTWORT ABSCHICKEN (v0.38). Der Server kann
+                        // nicht senden - er kann nur bitten; gesendet wird
+                        // hier, ueber die Antwort-Aktion der Benachrichtigung.
+                        //
+                        // Warum ueber diesen Strom und nicht ueber den
+                        // Postausgang: Der wird einmal pro Minute abgefragt,
+                        // die Antwort-Aktion lebt laut Messung im Median 72
+                        // Sekunden. Ueber die bereits offene Verbindung ist
+                        // der Befehl in Millisekunden da.
+                        //
+                        // Der Server WARTET auf die Rueckmeldung und sagt ihr
+                        // erst danach, was Sache ist - deshalb laeuft das
+                        // Senden hier auf dem Lese-Thread und nicht nebenher:
+                        // Erst wenn gemeldet ist, geht der Strom weiter.
+                        "whatsapp_senden" -> {
+                            val id = ev.optString("sende_id", "")
+                            val an = ev.optString("empfaenger", "")
+                            val was = ev.optString("text", "")
+                            val (status, detail) =
+                                try { WhatsAppAntwort.senden(ctx, an, was) }
+                                catch (e: Throwable) {
+                                    WhatsAppAntwort.FEHLER to
+                                        (e.javaClass.simpleName).take(60)
+                                }
+                            try {
+                                melden(client, base, key, id, status, detail)
+                            } catch (_: Throwable) {
+                                // Bleibt die Meldung aus, sagt Jarvis ehrlich,
+                                // dass er den Ausgang nicht kennt - besser als
+                                // ein behaupteter Erfolg.
+                            }
+                        }
                         "done" -> {
                             val voll = ev.optString("text", "")
                             if (voll.isNotEmpty()) onText(voll)
@@ -252,5 +284,35 @@ object StreamClient {
         if (bloecke == 0) return false
         if (blockiereBisGesprochen) queue.awaitEnde()
         return true
+    }
+
+    /**
+     * Dem Server sagen, was aus dem Sendebefehl geworden ist.
+     *
+     * Hier gehen NUR eine Kennung und ein Ergebniswort raus, kein Inhalt und
+     * kein Empfaenger - deshalb auch nichts zu verschluesseln.
+     */
+    private fun melden(
+        client: OkHttpClient,
+        base: String,
+        key: String,
+        sendeId: String,
+        status: String,
+        detail: String,
+    ) {
+        client.newCall(
+            Request.Builder()
+                .url("$base/whatsapp-gesendet")
+                .addHeader("ngrok-skip-browser-warning", "true")
+                .post(
+                    okhttp3.FormBody.Builder()
+                        .add("key", key)
+                        .add("sende_id", sendeId)
+                        .add("status", status)
+                        .add("detail", detail.take(120))
+                        .build()
+                )
+                .build()
+        ).execute().close()
     }
 }

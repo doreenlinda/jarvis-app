@@ -68,13 +68,25 @@ class WhatsAppLauscher : NotificationListenerService() {
             )
         ) return
 
-        // MESSUNG (v0.37, siehe whatsapp_diagnose.py auf dem Server): Traegt
-        // diese Benachrichtigung eine Direct-Reply-Aktion, und wie lange lebt
-        // sie? Beides entscheidet, ob "auf WhatsApp antworten" tragen kann.
-        // Hier wird NUR gemessen - die Aktion wird weder gespeichert noch
-        // ausgeloest.
+        // ANTWORT-AKTION FESTHALTEN (v0.38). Die Messung aus v0.37 hat
+        // beides beantwortet: Die Aktion ist immer da (25 von 25), lebt aber
+        // nur solange die Benachrichtigung (median 72 s, Ende fast immer
+        // "ersetzt"). Wer sie erst im Moment des Antwortens sucht, findet in
+        // der Haelfte der Faelle nichts mehr - deshalb wird sie JETZT
+        // festgehalten, beim Eintreffen. Gespeichert wird der Absendername
+        // und das Sende-Token, kein Inhalt.
+        WhatsAppAntwort.merken(titel, n.notification)
+
+        // Die Messung aus v0.37 laeuft unveraendert weiter: Sie kostet nichts
+        // und zeigt, ob sich die Lage aendert (etwa nach einem
+        // WhatsApp-Update).
         val antwortbar = hatAntwortAktion(n.notification)
         merkeStart(n.key)
+
+        // MESSUNG (v0.38): Kaeme die App an die .opus-Datei einer
+        // Sprachnachricht heran? Laeuft hoechstens alle sechs Stunden, liest
+        // keine Datei und uebertraegt keinen Ton.
+        SprachnachrichtProbe.vielleichtMessen(applicationContext, text)
 
         senden(titel, text, istGruppe, antwortbar)
     }
@@ -83,10 +95,10 @@ class WhatsAppLauscher : NotificationListenerService() {
      * Ist eine Direct-Reply-Aktion vorhanden? Das ist derselbe Mechanismus,
      * mit dem eine Smartwatch antwortet: eine Aktion mit RemoteInput.
      *
-     * Bewusst nur PRUEFEN, nicht festhalten. Ein gespeicherter PendingIntent
-     * waere bereits die halbe Sendefunktion - und solange nicht gemessen ist,
-     * ob der Weg traegt, hat eine unwiderrufliche Aktion an einer Messung
-     * nichts verloren.
+     * Reine MESSZAHL - das Festhalten der Aktion macht seit v0.38
+     * [WhatsAppAntwort.merken]. Beides bleibt nebeneinander stehen: Die
+     * Messung kostet nichts und zeigt, ob sich die Lage aendert, etwa nach
+     * einem WhatsApp-Update.
      */
     private fun hatAntwortAktion(notification: Notification?): Boolean = try {
         notification?.actions?.any { aktion ->
