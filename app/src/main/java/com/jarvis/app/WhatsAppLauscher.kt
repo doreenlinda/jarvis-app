@@ -181,18 +181,83 @@ class WhatsAppLauscher : NotificationListenerService() {
                     .add("gruppe", if (istGruppe) "1" else "0")
                     .add("antwortbar", if (antwortbar) "1" else "0")
                 if (e2e) bau.add("e2e", "1")
-                client.newCall(
+                // Die ANTWORT wird jetzt ausgewertet (v0.38): Sie kann einen
+                // Sendebefehl fuer eine automatische Antwort enthalten
+                // (Terminbestaetigung / Absage). Dieser Weg ist bewusst
+                // gewaehlt - die Verbindung steht hier ohnehin, damit ist
+                // der Befehl binnen einer Sekunde da. Ueber den Postausgang
+                // (1x pro Minute) waere er bei rund 72 s Lebensdauer der
+                // Antwort-Aktion regelmaessig zu spaet.
+                val roh = client.newCall(
                     Request.Builder()
                         .url("$basis/whatsapp-nachricht")
                         .addHeader("ngrok-skip-browser-warning", "true")
                         .post(bau.build())
                         .build()
-                ).execute().close()
+                ).execute().use { it.body?.string() ?: "" }
+                if (roh.isNotBlank()) automatischAntworten(ctx, basis, key, roh)
             } catch (_: Throwable) {
                 // Eine verlorene Nachricht ist aergerlich, aber sie darf weder
                 // die App noch das Lauschen stoeren. Der Server ist ohnehin
                 // gegen Doppelzustellungen abgesichert.
             }
+        }
+    }
+
+    /**
+     * Traegt die Serverantwort einen Sendebefehl? Dann jetzt antworten.
+     *
+     * Der Server entscheidet, OB und WAS geantwortet wird - hier wird nur
+     * ausgefuehrt. Er beschraenkt das auf zwei Faelle, die Doreen freigegeben
+     * hat (Terminbestaetigung, Absage), und formuliert den Text selbst aus
+     * Kalenderdaten.
+     *
+     * Das ERGEBNIS wird zurueckgemeldet, auch wenn niemand darauf wartet:
+     * Nur so kann der Server festhalten, was eine Kundin wirklich bekommen
+     * hat. Ohne diese Meldung stuende im Briefing eine Zustellung, die
+     * womoeglich nie stattfand.
+     */
+    private fun automatischAntworten(
+        ctx: Context,
+        basis: String,
+        key: String,
+        rohantwort: String,
+    ) {
+        val daten = try {
+            Krypto.auspacken(ctx, org.json.JSONObject(rohantwort))
+        } catch (_: Throwable) {
+            return
+        }
+        val auftrag = daten.optJSONObject("antwort") ?: return
+        val an = auftrag.optString("empfaenger", "")
+        val was = auftrag.optString("text", "")
+        val nachrichtId = auftrag.optInt("nachricht_id", 0)
+        if (an.isEmpty() || was.isEmpty() || nachrichtId <= 0) return
+
+        val (status, detail) = try {
+            WhatsAppAntwort.senden(ctx, an, was)
+        } catch (e: Throwable) {
+            WhatsAppAntwort.FEHLER to e.javaClass.simpleName.take(60)
+        }
+        try {
+            client.newCall(
+                Request.Builder()
+                    .url("$basis/whatsapp-gesendet")
+                    .addHeader("ngrok-skip-browser-warning", "true")
+                    .post(
+                        FormBody.Builder()
+                            .add("key", key)
+                            .add("sende_id", "")
+                            .add("status", status)
+                            .add("detail", detail.take(120))
+                            .add("nachricht_id", nachrichtId.toString())
+                            .build()
+                    )
+                    .build()
+            ).execute().close()
+        } catch (_: Throwable) {
+            // Geht die Meldung verloren, bleibt die Spalte leer - der
+            // Server behauptet dann KEINE Zustellung. Richtige Richtung.
         }
     }
 
