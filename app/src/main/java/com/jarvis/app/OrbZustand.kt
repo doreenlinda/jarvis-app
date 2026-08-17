@@ -87,6 +87,9 @@ object OrbZustand {
         if (!dienstLebt) return AUS
         val t = status.lowercase()
         if (t.startsWith("fehler")) return FEHLER
+        if (sprichtSeit > 0L && jetzt - sprichtSeit in 0..SPRECH_HOECHSTDAUER_MS) {
+            return SPRECHEN
+        }
         if (t.contains("weckwort erkannt") || t.contains("ich höre noch") ||
             t.contains("ich hoere noch")
         ) {
