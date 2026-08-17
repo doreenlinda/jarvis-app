@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity() {
     // Dienst-Fehler auf dem Handy komplett unsichtbar (v0.6-Lektion).
     private val statusHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var statusView: TextView? = null
+    private var orbView: VoiceOrbView? = null
     private val statusRunnable = object : Runnable {
         override fun run() {
             val prefs = getSharedPreferences("jarvis", Context.MODE_PRIVATE)
@@ -88,9 +89,22 @@ class MainActivity : AppCompatActivity() {
                     status.isEmpty() -> "Hey Jarvis ($version): (noch keine Meldung vom Dienst)"
                     else -> "Hey Jarvis ($version): $status"
                 }
+                // Der Orb bekommt DENSELBEN Befund wie die Statuszeile:
+                // "Lebenszeichen zu alt" heisst hier wie dort, dass der
+                // Dienst nicht laeuft - sonst zeigte der Orb munter
+                // "lauscht", waehrend die Zeile darunter das Gegenteil sagt.
+                orbView?.setzeZustand(
+                    OrbZustand.ausStatus(
+                        status = status,
+                        dienstLebt = !(letztes > 0L && alter > 60_000),
+                        sprichtSeit = OrbZustand.sprichtSeit(this@MainActivity),
+                        jetzt = System.currentTimeMillis(),
+                    )
+                )
                 statusHandler.postDelayed(this, 1000)
             } else {
                 statusView?.text = ""
+                orbView?.setzeZustand(OrbZustand.AUS)
             }
         }
     }
@@ -142,6 +156,7 @@ class MainActivity : AppCompatActivity() {
         answerView = findViewById(R.id.answerView)
         talkButton = findViewById(R.id.talkButton)
         statusView = findViewById(R.id.wakeStatusView)
+        orbView = findViewById(R.id.voiceOrb)
         val sendButton = findViewById<Button>(R.id.sendButton)
 
         // URL und Schluessel merken - nur einmal eintippen.

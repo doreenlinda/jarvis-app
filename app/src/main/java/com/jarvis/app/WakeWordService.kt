@@ -1056,6 +1056,9 @@ class WakeWordService : Service() {
     /** Spielt die Antwort ab und BLOCKIERT bis zum Ende - erst danach wird
      *  das Lauschen fortgesetzt (sonst hoert die Erkennung Jarvis' Stimme). */
     private fun spieleAntwort(b64: String) {
+        // Der Orb kann "spricht gerade" NICHT am Statustext ablesen - dort
+        // steht weiterhin "Antwort läuft …". Deshalb hier ausdruecklich.
+        OrbZustand.spricht(this)
         try {
             val bytes = Base64.decode(b64, Base64.DEFAULT)
             val tmp = File(cacheDir, "wake_antwort.mp3")
@@ -1071,6 +1074,11 @@ class WakeWordService : Service() {
             mp.start()
             synchronized(fertig) { fertig.wait(120_000) }
         } catch (_: Exception) {
+        } finally {
+            // finally, nicht am Ende des try: Bricht das Abspielen ab,
+            // bliebe der Orb sonst bis zum Ablauf der Hoechstdauer im
+            // Sprech-Zustand.
+            OrbZustand.sprichtNicht(this)
         }
     }
 

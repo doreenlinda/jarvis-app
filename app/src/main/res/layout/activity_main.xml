@@ -9,6 +9,18 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <!-- Der Voice Orb steht GANZ OBEN (Doreens Wahl, 17.08.2026):
+             Variante B, offener Ring in Terracotta-Orange. Er zeigt auf
+             einen Blick, was gerade laeuft - lauschen, aufnehmen, denken,
+             sprechen. Die Statuszeile weiter unten bleibt bestehen: Sie
+             nennt den WORTLAUT (Versionsnummer, Fehlermeldungen), der Orb
+             nur den Zustand. Ein Bild ersetzt keine Diagnose. -->
+        <com.jarvis.app.VoiceOrbView
+            android:id="@+id/voiceOrb"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:layout_marginBottom="6dp" />
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

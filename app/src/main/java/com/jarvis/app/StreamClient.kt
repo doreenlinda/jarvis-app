@@ -228,6 +228,11 @@ object StreamClient {
                             val b64 = if (ev.isNull("audio_base64")) null
                                       else ev.optString("audio_base64", null)
                             if (!b64.isNullOrEmpty()) {
+                                // Ab dem ERSTEN Block ist Jarvis' Stimme zu
+                                // hoeren - der Orb darf ab hier "spricht"
+                                // zeigen. Am Statustext ist das nicht
+                                // ablesbar, dort steht weiter "Antwort läuft".
+                                OrbZustand.spricht(ctx)
                                 queue.hinzufuegen(Base64.decode(b64, Base64.DEFAULT))
                             }
                             bloecke++
@@ -281,8 +286,16 @@ object StreamClient {
         }
 
         queue.stromBeendet()
-        if (bloecke == 0) return false
+        if (bloecke == 0) {
+            OrbZustand.sprichtNicht(ctx)
+            return false
+        }
         if (blockiereBisGesprochen) queue.awaitEnde()
+        // Nur hier verlaesslich: Ohne blockiereBisGesprochen (der
+        // Sprechen-Knopf in der MainActivity) laeuft die Warteschlange noch
+        // weiter. Dann greift die Hoechstdauer aus OrbZustand als Netz -
+        // der Orb faellt spaeter von selbst zurueck, statt haengenzubleiben.
+        if (blockiereBisGesprochen) OrbZustand.sprichtNicht(ctx)
         return true
     }
 
