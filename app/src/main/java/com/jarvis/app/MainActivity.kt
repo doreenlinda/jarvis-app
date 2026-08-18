@@ -166,8 +166,8 @@ class MainActivity : AppCompatActivity() {
         e2eField.setText(prefs.getString(Krypto.FELD, ""))
 
         // Zugangsdaten standardmaessig ZU. Sie braucht sie nur einmal je
-        // Installation, aber sie stehen ganz oben und landen sonst auf jedem
-        // Screenshot - und Screenshots sind ihr wichtigstes Diagnosewerkzeug.
+        // Installation, aber sie landen sonst auf jedem Screenshot - und
+        // Screenshots sind ihr wichtigstes Diagnosewerkzeug.
         // Beim ERSTEN Start (nichts gespeichert) klappt der Bereich von selbst
         // auf, sonst stuende sie vor einer App ohne sichtbare Eingabefelder.
         val zugangBereich = findViewById<android.widget.LinearLayout>(R.id.zugangBereich)
@@ -182,6 +182,17 @@ class MainActivity : AppCompatActivity() {
             zugangBereich.visibility =
                 if (zu) android.view.View.VISIBLE else android.view.View.GONE
             zugangToggle.text = if (zu) "Zugangsdaten ausblenden" else "Zugangsdaten einblenden"
+        }
+
+        // Seit v0.44 steht der Zugangsbereich UNTEN (Doreens Vorschlag: der
+        // Platz oben gehoert dem Orb). Beim ersten Start liegt er damit
+        // ausserhalb des Bildes - die Seite muss also hinscrollen, sonst
+        // sieht sie eine App ohne Eingabefelder und weiss nicht, wohin.
+        // post{}, weil vor dem ersten Layoutdurchgang niemand weiss, wo der
+        // Knopf sitzt.
+        if (nochNichtEingerichtet) {
+            val seite = findViewById<android.widget.ScrollView>(R.id.seite)
+            seite.post { seite.smoothScrollTo(0, zugangToggle.top) }
         }
 
         // Dieselbe Mechanik fuer die drei Schalter (v0.42, Doreens Wunsch:

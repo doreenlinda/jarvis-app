@@ -1,20 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Tastenfarbe, Doreens Wahl vom 18.08.2026 (Variante B einer Vorschau mit
-  drei Graphit-Toenen). Vorher trugen die Tasten das helle Systemgrau.
+  DUNKLES ERSCHEINUNGSBILD, Doreens Wahl vom 18.08.2026: Schema 1 ("sehr
+  dunkel") aus einer Vorschau mit drei Abstufungen, in der der komplette
+  Aufbau zu sehen war - Orb, Eingabefeld, Tasten, Statuszeile.
 
-  Die Werte stammen aus der Palette des Dashboards, damit App und Dashboard
-  denselben Eindruck machen: dort ist #2E2E2E die Graphit-Linie und #E8E8E8
-  die Schrift. Variante B liegt bewusst eine Spur heller als das Dashboard-
-  Graphit - die App folgt dem Hell-/Dunkelmodus des Handys, und im
-  Dunkelmodus wuerde ein zu dunkler Ton mit dem Hintergrund verschwimmen.
+  Ihre Vorgabe im Wortlaut: "Der Hintergrund und Tasten muessen auch so
+  dunkel. Die Schrift, auf den Tasten nicht weiss, der Kontrast waere zu
+  stark zu den dunkleren Tasten."
+
+  DER GRUND DAHINTER: Der Voice Orb ist seit v0.44 eine Glaskugel nach
+  einer Vorlage, die von schwarzem Grund lebt. Alles andere in der App
+  ordnet sich dem unter - der Orb soll die hellste Stelle im Bild sein.
+
+  KONTRAST IST GEMESSEN, nicht geschaetzt (Formel der relativen
+  Leuchtdichte, in der Vorschau je Abstufung ausgewiesen):
+    Tastenschrift  #A79C93 auf #1C1917 = 6,5:1
+    Eingabefeld    #B8ADA3 auf #141110 = 8,5:1
+    Statuszeile    #8A8078 auf #0B0A0A = 5,1:1
+  Alle drei liegen ueber 4,5:1, gelten also als sicher lesbar. "Nicht zu
+  grell" darf nicht in "schlecht lesbar" kippen - wer diese Werte aendert,
+  rechnet den Kontrast bitte nach.
+
+  VORHER (bis v0.43): Tasten #3A3A3A mit weisser Schrift #E8E8E8 (9,3:1),
+  App im Hell-/Dunkelmodus des Handys.
 -->
 <resources>
-    <color name="taste_graphit">#3A3A3A</color>
+    <!-- Der Grund der ganzen App - dieselbe Tiefe wie das Feld, auf dem der
+         Orb in der Vorschau lag. Dadurch hat die Kugel keine sichtbare
+         Kante mehr und schwebt frei. -->
+    <color name="app_grund">#0B0A0A</color>
+
+    <color name="taste_graphit">#1C1917</color>
     <!-- Gedrueckt: eine Stufe heller. Die eigene Hintergrundgrafik ersetzt
          den Standard-Effekt der Taste, deshalb muss die Rueckmeldung beim
          Antippen hier selbst herkommen - sonst fuehlt sich die Taste tot an. -->
-    <color name="taste_graphit_gedrueckt">#4E4E4E</color>
-    <color name="taste_rand">#4A4A4A</color>
-    <color name="taste_schrift">#E8E8E8</color>
+    <color name="taste_graphit_gedrueckt">#2E2825</color>
+    <color name="taste_rand">#2A2523</color>
+    <color name="taste_schrift">#A79C93</color>
+
+    <!-- Eingabefelder: eine Spur heller als der Grund, damit sie als Flaeche
+         erkennbar bleiben. Auf dunklem Grund reicht der Standard-Unterstrich
+         dafuer nicht mehr aus. -->
+    <color name="feld_grund">#141110</color>
+    <color name="feld_schrift">#B8ADA3</color>
+    <color name="hinweis_schrift">#6E655E</color>
+
+    <!-- Statuszeile und Randnotizen. Bewusst gedaempft: Sie stehen dauerhaft
+         da und sollen den Orb nicht ueberstrahlen. -->
+    <color name="status_schrift">#8A8078</color>
+
+    <!-- Das Terracotta des Orbs, wie im Dashboard. -->
+    <color name="orb_orange">#E8722C</color>
 </resources>

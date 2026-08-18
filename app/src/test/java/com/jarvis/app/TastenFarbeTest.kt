@@ -32,22 +32,65 @@ class TastenFarbeTest {
     }
 
     /**
-     * Haelt Doreens Entscheidung fest. Vorgelegt waren #2E2E2E, #3A3A3A und
-     * #1F1F1F; sie hat sich fuer den mittleren Ton entschieden, weil die App
-     * dem Hell-/Dunkelmodus des Handys folgt und der dunkelste Ton dort mit
-     * dem Hintergrund verschwimmen kann. Wer den Wert aendert, aendert eine
-     * getroffene Entscheidung - und soll darueber stolpern.
+     * Haelt Doreens Entscheidung fest.
+     *
+     * GEAENDERT AM 18.08.2026, NACHMITTAGS - und zwar von ihr selbst, nicht
+     * durch Aufweichen dieses Tests: Mit dem Umbau des Voice Orbs auf eine
+     * Glaskugel wurde die ganze App fest dunkel (Schema 1 aus einer Vorschau
+     * mit drei Abstufungen). Ihre Vorgabe: "Der Hintergrund und Tasten
+     * muessen auch so dunkel. Die Schrift, auf den Tasten nicht weiss, der
+     * Kontrast waere zu stark zu den dunkleren Tasten."
+     *
+     * Vorher galt hier #3A3A3A mit weisser Schrift #E8E8E8 - festgehalten
+     * am Vormittag desselben Tages, als die App noch dem Hell-/Dunkelmodus
+     * des Handys folgte. Diese Begruendung ist mit dem festen dunklen Thema
+     * entfallen.
+     *
+     * Wer diese Werte aendert, aendert eine getroffene Entscheidung - und
+     * soll darueber stolpern. Fuer die Lesbarkeit gilt: Die Kontraste sind
+     * gemessen (6,5:1 auf der Taste), nicht geschaetzt; siehe colors.xml.
      */
     @Test
     fun graphitIstDerGewaehlteTon() {
         val farben = lies("src/main/res/values/colors.xml")
         assertTrue(
-            "Der von Doreen gewaehlte Ton #3A3A3A steht nicht mehr in colors.xml",
-            farben.contains("<color name=\"taste_graphit\">#3A3A3A</color>")
+            "Der von Doreen gewaehlte Ton #1C1917 steht nicht mehr in colors.xml",
+            farben.contains("<color name=\"taste_graphit\">#1C1917</color>")
         )
         assertTrue(
-            "Die helle Schriftfarbe fehlt - auf Graphit waere dunkle Schrift kaum lesbar",
-            farben.contains("<color name=\"taste_schrift\">#E8E8E8</color>")
+            "Die gedaempfte Schriftfarbe #A79C93 fehlt - weiss war ihr zu grell",
+            farben.contains("<color name=\"taste_schrift\">#A79C93</color>")
+        )
+        assertTrue(
+            "Der dunkle App-Grund fehlt - der Orb soll die hellste Stelle im Bild sein",
+            farben.contains("<color name=\"app_grund\">#0B0A0A</color>")
+        )
+    }
+
+    /**
+     * Die App folgt NICHT mehr dem Hell-/Dunkelmodus des Handys. Der Orb ist
+     * eine Glaskugel auf schwarzem Grund; im hellen Systemmodus saesse sie
+     * als einziges dunkles Feld in einer weissen App.
+     *
+     * Ohne diesen Test faellt ein versehentliches Zurueckdrehen auf DayNight
+     * erst Doreen auf - und zwar draussen bei Tageslicht, wenn ihr Handy von
+     * selbst in den hellen Modus wechselt.
+     */
+    @Test
+    fun dieAppIstFestDunkel() {
+        val manifest = lies("src/main/AndroidManifest.xml")
+        assertTrue(
+            "Das Manifest verweist nicht auf Theme.Jarvis",
+            manifest.contains("android:theme=\"@style/Theme.Jarvis\"")
+        )
+        assertTrue(
+            "DayNight ist zurueck - die App wuerde im hellen Systemmodus hell",
+            !manifest.contains("DayNight")
+        )
+        val thema = lies("src/main/res/values/themes.xml")
+        assertTrue(
+            "Theme.Jarvis setzt keinen dunklen Fensterhintergrund",
+            thema.contains("<item name=\"android:windowBackground\">@color/app_grund</item>")
         )
     }
 

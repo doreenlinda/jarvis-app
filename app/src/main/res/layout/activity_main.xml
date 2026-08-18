@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/seite"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="16dp">
@@ -9,73 +10,35 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Der Voice Orb steht GANZ OBEN (Doreens Wahl, 17.08.2026):
-             Variante B, offener Ring in Terracotta-Orange. Er zeigt auf
-             einen Blick, was gerade laeuft - lauschen, aufnehmen, denken,
-             sprechen. Die Statuszeile weiter unten bleibt bestehen: Sie
-             nennt den WORTLAUT (Versionsnummer, Fehlermeldungen), der Orb
-             nur den Zustand. Ein Bild ersetzt keine Diagnose. -->
+        <!-- Der Voice Orb steht GANZ OBEN. Seit v0.44 eine Glaskugel nach
+             Doreens Vorlage (Variante B), und mit 230dp deutlich groesser
+             als die 180dp davor.
+
+             DIE HOEHE HAENGT AN DER REIHENFOLGE UNTEN: Der
+             Zugangsdaten-Knopf stand frueher hier zwischen Orb und
+             Eingabefeld. Er ist auf ihren Vorschlag nach unten gewandert
+             ("dann haetten wir mehr Platz") - die gewonnenen ~48dp gehen
+             hier hinein. Ohne sie muesste die Kugel beim Sprechen gestaucht
+             werden und die Zustaende waeren schlechter zu unterscheiden.
+
+             Die Statuszeile weiter unten bleibt bestehen: Sie nennt den
+             WORTLAUT (Versionsnummer, Fehlermeldungen), der Orb nur den
+             Zustand. Ein Bild ersetzt keine Diagnose. -->
         <com.jarvis.app.VoiceOrbView
             android:id="@+id/voiceOrb"
             android:layout_width="match_parent"
-            android:layout_height="180dp"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Zugangsdaten liegen hinter einem Schalter und sind standardmaessig
-             ZU. Sie braucht sie nur einmal je Installation, aber sie stehen
-             ganz oben und landen auf jedem Screenshot - und Screenshots sind
-             ihr wichtigstes Diagnosewerkzeug (die komplette Health-Sync-Suche
-             lief ueber Bildschirmfotos). Beim ersten Start ohne gespeicherte
-             Daten klappt der Bereich automatisch auf. -->
-        <Button
-            android:id="@+id/zugangToggle"
-            android:background="@drawable/taste_graphit"
-            android:textColor="@color/taste_schrift"
-            android:stateListAnimator="@null"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Zugangsdaten einblenden"
-            android:textSize="12sp" />
-
-        <LinearLayout
-            android:id="@+id/zugangBereich"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <EditText
-                android:id="@+id/serverUrl"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Server-URL (z. B. https://...ngrok-free.dev)"
-                android:inputType="textUri" />
-
-            <EditText
-                android:id="@+id/accessKey"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Zugangsschluessel"
-                android:inputType="textPassword"
-                android:paddingTop="8dp" />
-
-            <EditText
-                android:id="@+id/e2eKey"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Schluessel (E2E) - leer lassen = unverschluesselt"
-                android:inputType="textPassword"
-                android:paddingTop="8dp" />
-        </LinearLayout>
+            android:layout_height="230dp"
+            android:layout_marginBottom="14dp" />
 
         <EditText
             android:id="@+id/messageText"
+            android:background="@drawable/feld_dunkel"
+            android:textColor="@color/feld_schrift"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Nachricht an Jarvis"
             android:inputType="textMultiLine"
-            android:minLines="2"
-            android:paddingTop="8dp" />
+            android:minLines="2" />
 
         <Button
             android:id="@+id/sendButton"
@@ -126,9 +89,72 @@
             android:paddingTop="16dp"
             android:paddingBottom="16dp" />
 
+        <!-- Zugangsdaten liegen hinter einem Schalter und sind standardmaessig
+             ZU. Sie braucht sie nur einmal je Installation, aber sie landen
+             auf jedem Screenshot - und Screenshots sind ihr wichtigstes
+             Diagnosewerkzeug (die komplette Health-Sync-Suche lief ueber
+             Bildschirmfotos).
+
+             SEIT v0.44 HIER UNTEN statt direkt unter dem Orb (Doreens
+             Vorschlag): Der Knopf war das einzige Element zwischen Orb und
+             Eingabefeld, und der Platz gehoert jetzt der Kugel.
+
+             Beim ersten Start ohne gespeicherte Daten klappt der Bereich
+             automatisch auf UND die Seite scrollt hierher (siehe
+             MainActivity) - sonst stuende sie vor einer App, deren
+             Eingabefelder ausserhalb des Bildes liegen. -->
+        <Button
+            android:id="@+id/zugangToggle"
+            android:background="@drawable/taste_graphit"
+            android:textColor="@color/taste_schrift"
+            android:stateListAnimator="@null"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="Zugangsdaten einblenden"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:id="@+id/zugangBereich"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/serverUrl"
+                android:background="@drawable/feld_dunkel"
+                android:textColor="@color/feld_schrift"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Server-URL (z. B. https://...ngrok-free.dev)"
+                android:inputType="textUri" />
+
+            <EditText
+                android:id="@+id/accessKey"
+                android:background="@drawable/feld_dunkel"
+                android:textColor="@color/feld_schrift"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Zugangsschluessel"
+                android:inputType="textPassword" />
+
+            <EditText
+                android:id="@+id/e2eKey"
+                android:background="@drawable/feld_dunkel"
+                android:textColor="@color/feld_schrift"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Schluessel (E2E) - leer lassen = unverschluesselt"
+                android:inputType="textPassword" />
+        </LinearLayout>
+
         <!-- v0.42 (Doreens Wunsch, 18.08.2026): Die drei Schalter liegen
-             jetzt hinter einem Knopf, "damit die App nicht so ueberladen
-             wirkt". Standardmaessig ZU.
+             hinter einem Knopf, "damit die App nicht so ueberladen wirkt".
+             Standardmaessig ZU.
 
              Der Grund, aus dem sie frueher offen dastanden, bleibt dabei
              erhalten: Sie soll SEHEN, was gerade an ist, ohne erst zu
@@ -143,7 +169,7 @@
             android:stateListAnimator="@null"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="10dp"
             android:text="Einstellungen einblenden"
             android:textSize="12sp" />
 
@@ -175,6 +201,7 @@
                 android:paddingTop="2dp"
                 android:textSize="13sp"
                 android:textStyle="italic"
+                android:textColor="@color/status_schrift"
                 android:text="" />
 
             <!-- v0.32: WhatsApp mitlesen. Wie beim Standort zwei Schalter - der
@@ -198,6 +225,7 @@
                 android:paddingTop="2dp"
                 android:textSize="13sp"
                 android:textStyle="italic"
+                android:textColor="@color/status_schrift"
                 android:text="" />
 
             <!-- v0.33: Standardmaessig AUS. Eine dringende Meldung kann eine sehr
@@ -219,6 +247,7 @@
                 android:paddingTop="2dp"
                 android:textSize="13sp"
                 android:textStyle="italic"
+                android:textColor="@color/status_schrift"
                 android:text="" />
         </LinearLayout>
 
@@ -230,6 +259,7 @@
             android:paddingTop="12dp"
             android:textSize="13sp"
             android:textStyle="italic"
+            android:textColor="@color/status_schrift"
             android:text="" />
 
         <TextView
@@ -238,6 +268,7 @@
             android:layout_height="wrap_content"
             android:paddingTop="20dp"
             android:textSize="16sp"
+            android:textColor="@color/feld_schrift"
             android:textIsSelectable="true"
             android:text="" />
 
@@ -252,6 +283,7 @@
             android:paddingTop="28dp"
             android:paddingBottom="4dp"
             android:textSize="18sp"
+            android:textColor="@color/feld_schrift"
             android:text="Nachrichten von Jarvis" />
 
         <LinearLayout

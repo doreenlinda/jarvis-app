@@ -3,28 +3,44 @@ package com.jarvis.app
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Shader
+import android.graphics.SweepGradient
 import android.util.AttributeSet
 import android.view.View
+import kotlin.math.PI
 import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * Der Voice Orb: ein leuchtender Ring in Doreens Terracotta-Orange, der
- * zeigt, was Jarvis gerade tut.
+ * Der Voice Orb: eine leuchtende Glaskugel in Doreens Terracotta-Orange,
+ * die zeigt, was Jarvis gerade tut.
  *
- * VARIANTE B ("Ring"), von ihr am 17.08.2026 aus drei Entwuerfen gewaehlt -
- * offener Ring, innen dunkel, ruhiger und technischer als ein voller Ball.
- * Die Vorschau lag als "Jarvis Voice Orb.html" auf ihrem Desktop; die
- * Zahlen hier (Groessen, Tempi, Deckkraft) sind daraus uebernommen, damit
- * das Gebaute dem Gezeigten entspricht.
+ * VARIANTE B ("kraeftiger"), von ihr am 18.08.2026 gewaehlt - nach einer
+ * Stock-Aufnahme, die sie als Vorlage geschickt hat. Die Datei selbst
+ * wandert NICHT in die App (Lizenz); nachgebaut ist allein der Eindruck,
+ * in Zeichencode wie zuvor.
  *
- * KEIN Weichzeichner-Filter: Das Leuchten entsteht aus einem weichen
- * RadialGradient. BlurMaskFilter braeuchte Software-Rendering fuer die
- * ganze View - auf einem Bildschirm, der bei jedem Zuruf animiert, ist das
- * die teurere Loesung.
+ * WAS DIE VORLAGE AUSMACHT - und was der erste Anlauf falsch hatte:
+ * Der helle Schimmer ist dort ein BAND, das an beiden Enden weich auf null
+ * ausblendet und am Rand entlangfliesst. Mein erster Entwurf zeichnete
+ * dafuer einen Bogen mit runden Kappen; der endet abrupt, und Doreens
+ * Befund war treffend: "wirkt wie ein statisches kurzes Stueck Reifen, im
+ * Reifen". Deshalb ist der Schimmer heute ein WINKEL-VERLAUF (siehe
+ * glanz()) - in der Mitte hell, zu beiden Seiten auf null, ohne Kanten.
+ * Mass genommen an Sekunde 5,00 der Vorlage, die sie dafuer benannt hat.
+ *
+ * GROESSE: Die Kugel fuellt fast die Flaeche (230dp statt 180dp). Moeglich
+ * wurde das, weil der Zugangsdaten-Knopf auf ihren Vorschlag nach unten
+ * gewandert ist. Der Puls muss trotzdem hineinpassen - der groesste Wert
+ * (sprechen: .80 + .155) liegt bei .955 und stoesst gerade nicht an.
+ *
+ * KEIN Weichzeichner-Filter: Das Leuchten entsteht aus Verlaeufen.
+ * BlurMaskFilter braeuchte Software-Rendering fuer die ganze View - auf
+ * einem Bildschirm, der bei jedem Zuruf animiert, ist das die teurere
+ * Loesung.
  *
  * AKKU: Die Animation laeuft NUR, solange die View sichtbar am Fenster
  * haengt (siehe onWindowVisibilityChanged/onDetachedFromWindow). Sie sitzt
@@ -38,35 +54,34 @@ class VoiceOrbView @JvmOverloads constructor(
     defStyle: Int = 0,
 ) : View(context, attrs, defStyle) {
 
-    private val orange = Color.rgb(232, 114, 44)   // #E8722C, wie im Dashboard
-    private val hell = Color.rgb(255, 176, 92)     // #FFB05C
-
     private val scheinPinsel = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val ringPinsel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val koerperPinsel = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val saumPinsel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeCap = Paint.Cap.ROUND
     }
-    private val innenPinsel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val glanzPinsel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 2.5f * resources.displayMetrics.density
     }
+    private val dreher = Matrix()
 
     /** basis = Ruhegroesse, puls = Ausschlag, tempo = Geschwindigkeit,
-     *  glow = Staerke des Aussenscheins. Werte aus der Vorschau. */
+     *  glow = Staerke des Aussenscheins, dreh = wie schnell der Schimmer
+     *  um den Rand wandert. Werte aus der Vorschau, die sie beurteilt hat. */
     private data class Form(
-        val basis: Float, val puls: Float, val tempo: Float, val glow: Float,
+        val basis: Float, val puls: Float, val tempo: Float,
+        val glow: Float, val dreh: Float,
     )
 
     private val formen = mapOf(
-        OrbZustand.AUS to Form(0.28f, 0f, 0f, 0.10f),
-        OrbZustand.RUHE to Form(0.30f, 0.045f, 0.55f, 0.55f),
-        OrbZustand.LAUSCHEN to Form(0.42f, 0.14f, 1.7f, 0.95f),
-        OrbZustand.DENKEN to Form(0.36f, 0.06f, 3.6f, 0.70f),
-        OrbZustand.SPRECHEN to Form(0.46f, 0.20f, 2.4f, 1.0f),
-        // Fehler: still stehender, matter Ring. Bewusst OHNE Puls - ein
-        // pulsierender Orb neben einer Fehlermeldung liest sich wie
-        // "alles in Ordnung".
-        OrbZustand.FEHLER to Form(0.30f, 0f, 0f, 0.25f),
+        OrbZustand.AUS to Form(0.64f, 0f, 0f, 0.10f, 0f),
+        OrbZustand.RUHE to Form(0.70f, 0.025f, 0.55f, 0.45f, 0.18f),
+        OrbZustand.LAUSCHEN to Form(0.78f, 0.090f, 1.7f, 1.0f, 0.55f),
+        OrbZustand.DENKEN to Form(0.73f, 0.040f, 3.6f, 0.62f, 2.1f),
+        OrbZustand.SPRECHEN to Form(0.80f, 0.155f, 2.4f, 0.95f, 0.75f),
+        // Fehler: still stehende, matte Kugel. Bewusst OHNE Puls und ohne
+        // wandernden Schimmer - ein lebhafter Orb neben einer Fehlermeldung
+        // liest sich wie "alles in Ordnung".
+        OrbZustand.FEHLER to Form(0.66f, 0f, 0f, 0.22f, 0f),
     )
 
     private var zustand: String = OrbZustand.AUS
@@ -94,6 +109,73 @@ class VoiceOrbView @JvmOverloads constructor(
         return f.basis + f.puls * v
     }
 
+    private fun orange(a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), 232, 114, 44)
+    private fun hell(a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), 255, 176, 92)
+    private fun schimmer(a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), 255, 222, 190)
+
+    /**
+     * Ein Winkel-Verlauf, dessen Startpunkt frei liegt. SweepGradient
+     * beginnt in Android immer bei 3 Uhr - gedreht wird deshalb ueber eine
+     * Matrix auf dem Shader. (Im Web erledigt das der Startwinkel von
+     * createConicGradient; das ist der einzige nennenswerte Unterschied
+     * zwischen der Vorschau und diesem Code.)
+     */
+    private fun sweep(
+        cx: Float, cy: Float, farben: IntArray, stufen: FloatArray, startRad: Float,
+    ): SweepGradient {
+        val s = SweepGradient(cx, cy, farben, stufen)
+        dreher.reset()
+        dreher.setRotate((startRad * 180f / PI.toFloat()), cx, cy)
+        s.setLocalMatrix(dreher)
+        return s
+    }
+
+    /** Der ungleich verteilte Lichtsaum am Rand der Kugel. */
+    private fun saum(
+        canvas: Canvas, cx: Float, cy: Float, r: Float,
+        breite: Float, dreh: Float, grund: Float, spitze: Float,
+    ) {
+        saumPinsel.shader = sweep(
+            cx, cy,
+            intArrayOf(
+                hell(spitze), orange(grund), orange(grund * 0.35f),
+                hell(spitze * 0.85f), orange(grund * 0.35f), orange(grund),
+                hell(spitze),
+            ),
+            floatArrayOf(0f, 0.13f, 0.30f, 0.50f, 0.70f, 0.87f, 1f),
+            dreh,
+        )
+        saumPinsel.strokeWidth = breite
+        canvas.drawCircle(cx, cy, r - breite / 2f, saumPinsel)
+    }
+
+    /**
+     * DER SCHIMMER - die Stelle, um die es Doreen ging.
+     * In der Mitte hell, zu beiden Enden auf null. Damit hat er keine
+     * Kanten; ein Bogen mit runden Kappen haette welche.
+     */
+    private fun glanz(
+        canvas: Canvas, cx: Float, cy: Float, radius: Float,
+        breite: Float, mitte: Float, weite: Float, deckung: Float,
+    ) {
+        val spanne = ((weite * 2f) / (2f * PI.toFloat())).coerceAtMost(0.999f)
+        glanzPinsel.shader = sweep(
+            cx, cy,
+            intArrayOf(
+                schimmer(0f), schimmer(deckung * 0.22f), schimmer(deckung * 0.72f),
+                schimmer(deckung), schimmer(deckung * 0.72f), schimmer(deckung * 0.22f),
+                schimmer(0f), schimmer(0f),
+            ),
+            floatArrayOf(
+                0f, spanne * 0.22f, spanne * 0.40f, spanne * 0.50f,
+                spanne * 0.62f, spanne * 0.80f, spanne, 1f,
+            ),
+            mitte - weite,
+        )
+        glanzPinsel.strokeWidth = breite
+        canvas.drawCircle(cx, cy, radius, glanzPinsel)
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (start == 0L) start = System.nanoTime()
@@ -102,41 +184,58 @@ class VoiceOrbView @JvmOverloads constructor(
         val f = form()
         val cx = width / 2f
         val cy = height / 2f
-        val max = min(width, height) / 2f
-        val r = max * amplitude(t)
+        val r = min(width, height) / 2f * amplitude(t)
         if (r <= 0f) return
 
+        val matt = zustand == OrbZustand.AUS || zustand == OrbZustand.FEHLER
+        val dreh = -1.2f + t * f.dreh
+        // Die Helligkeit traegt den Zustand mit: Bei einer Kugel, die die
+        // Flaeche fuellt, kann die Groesse allein ihn nicht mehr zeigen.
+        val licht = 0.55f + 0.45f * f.glow
+
         // Aussenschein
-        val scheinR = r * 2.5f
-        if (scheinR > 0f) {
-            scheinPinsel.shader = RadialGradient(
-                cx, cy, scheinR,
-                intArrayOf(
-                    Color.argb((0.34f * f.glow * 255).toInt(), 232, 114, 44),
-                    Color.argb((0.13f * f.glow * 255).toInt(), 232, 114, 44),
-                    Color.argb(0, 232, 114, 44),
-                ),
-                floatArrayOf(0f, 0.45f, 1f),
-                Shader.TileMode.CLAMP,
-            )
-            canvas.drawCircle(cx, cy, scheinR, scheinPinsel)
+        val scheinR = r * 2.9f
+        scheinPinsel.shader = RadialGradient(
+            cx, cy, scheinR,
+            intArrayOf(orange(0.34f * f.glow), orange(0.13f * f.glow), orange(0f)),
+            floatArrayOf(0f, 0.45f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawCircle(cx, cy, scheinR, scheinPinsel)
+
+        // Der Glaskoerper: innen fast schwarz, zum Rand hin ein warmer Hauch.
+        koerperPinsel.shader = RadialGradient(
+            cx - r * 0.30f, cy - r * 0.34f, r * 1.30f,
+            intArrayOf(
+                Color.argb(209, 78, 46, 32),
+                Color.argb(219, 34, 20, 15),
+                Color.argb(230, 16, 9, 8),
+                Color.argb(158, 120, 52, 24),
+            ),
+            floatArrayOf(0f, 0.42f, 0.86f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawCircle(cx, cy, r, koerperPinsel)
+
+        val breite = (r * 0.075f).coerceAtLeast(5f * resources.displayMetrics.density)
+        saum(
+            canvas, cx, cy, r, breite, dreh,
+            if (matt) 0.40f else 1f * licht,
+            if (matt) 0.45f else 1f * licht,
+        )
+
+        if (!matt) {
+            val mitteGlanz = r - breite * 0.5f
+            // Breiter, sehr heller Schimmer - Mass genommen an t = 5,00 s.
+            glanz(canvas, cx, cy, mitteGlanz, breite * 1.5f, dreh - 2.4f, 0.95f, 0.95f * licht)
+            // Ein zweiter, schwaecherer weiter hinten - die Vorlage hat
+            // ebenfalls mehrere Glanzstellen zugleich.
+            glanz(canvas, cx, cy, mitteGlanz, breite * 1.15f, dreh + 1.0f, 0.55f, 0.34f * licht)
         }
 
-        // Der Ring selbst
-        ringPinsel.color = hell
-        ringPinsel.alpha = if (zustand == OrbZustand.AUS ||
-            zustand == OrbZustand.FEHLER
-        ) 110 else 242
-        ringPinsel.strokeWidth = (r * 0.12f)
-            .coerceAtLeast(5f * resources.displayMetrics.density)
-        canvas.drawCircle(cx, cy, r, ringPinsel)
-
-        // Zarter Innenring - er gibt dem offenen Ring Tiefe.
-        innenPinsel.color = orange
-        innenPinsel.alpha = if (zustand == OrbZustand.AUS) 40 else 90
-        canvas.drawCircle(cx, cy, r * 0.62f, innenPinsel)
-
-        if (f.puls > 0f && isShown) postInvalidateOnAnimation()
+        // Weiterzeichnen, solange sich etwas bewegt: Der Schimmer wandert
+        // auch dann, wenn die Kugel nicht pulsiert (Ruhe).
+        if ((f.puls > 0f || f.dreh > 0f) && isShown) postInvalidateOnAnimation()
     }
 
     override fun onWindowVisibilityChanged(visibility: Int) {

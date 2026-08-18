@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FEST DUNKEL, Doreens Entscheidung vom 18.08.2026 (Schema 1 aus einer
+  Vorschau mit drei Abstufungen): "Der Hintergrund und Tasten muessen auch
+  so dunkel. Die Schrift auf den Tasten nicht weiss, der Kontrast waere zu
+  stark zu den dunkleren Tasten."
+
+  WARUM NICHT MEHR DayNight: Der Voice Orb ist eine Glaskugel auf schwarzem
+  Grund - der Look lebt davon. Im hellen Systemmodus saesse eine dunkle
+  Kugel in einer weissen App, und der Orb waere das einzige dunkle Feld
+  darin. Die App folgt deshalb NICHT mehr dem Hell-/Dunkelmodus des Handys.
+  Das ist bewusst: ein Erscheinungsbild statt zwei halbgute.
+
+  Elternteil ist Theme.AppCompat (das dunkle Standardthema) - nicht
+  NoActionBar. Der Titelbalken bleibt also, wo er war; geaendert wird nur
+  die Farbigkeit.
+-->
+<resources>
+    <style name="Theme.Jarvis" parent="Theme.AppCompat">
+        <item name="android:windowBackground">@color/app_grund</item>
+        <item name="colorPrimary">@color/app_grund</item>
+        <item name="colorPrimaryDark">@color/app_grund</item>
+        <item name="colorAccent">@color/orb_orange</item>
+
+        <!-- Bewusst NICHT android:textColor global setzen: Das schlaegt auf
+             die Tasten durch und wuerde deren eigene Schriftfarbe
+             ueberstimmen. Diese drei reichen fuer Texte, Hinweise und
+             Schalterbeschriftungen. -->
+        <item name="android:textColorPrimary">@color/feld_schrift</item>
+        <item name="android:textColorSecondary">@color/status_schrift</item>
+        <item name="android:textColorHint">@color/hinweis_schrift</item>
+    </style>
+</resources>
