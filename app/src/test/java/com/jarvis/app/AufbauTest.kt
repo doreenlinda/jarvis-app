@@ -1,6 +1,5 @@
 package com.jarvis.app
 
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -67,15 +66,23 @@ class AufbauTest {
     }
 
     /**
-     * Die vier Haupttasten stehen in EINER Reihe (Doreens Wunsch vom
+     * Die vier Haupttasten stehen in EINER Reihe, mittig (Doreens Wunsch vom
      * 18.08.2026: "kleiner Senden, Sprechen, Foto/Scannen, Stoppen ... das
-     * wuerde auch alles nochmal aufgeraeumter wirken lassen"). Vorher waren
-     * es vier breite Balken untereinander.
+     * wuerde auch alles nochmal aufgeraeumter wirken lassen", danach:
+     * "Bekommen wir die kleinen Tasten mittiger platziert ... Nicht
+     * linksbuendig." -> "Mittig"). Vorher waren es vier breite Balken
+     * untereinander.
      *
-     * Die Breite kommt aus layout_weight - ohne das waere eine Taste so
-     * breit wie ihre gerade eingestellte Beschriftung, und die Reihe
-     * huepfte, sobald der Weckwort-Knopf zwischen "Aktivieren" und
-     * "Stoppen" wechselt.
+     * TESTDATEN ANGEPASST: Der erste Bau verteilte die vier ueber die volle
+     * Breite (layout_weight). Vorgelegt wurden ihr daraufhin drei
+     * Anordnungen - volle Breite, mittig gruppiert, linksbuendig - und sie
+     * hat sich fuer MITTIG entschieden. Die Pruefung selbst bleibt: vier
+     * Tasten, eine Reihe.
+     *
+     * Die MINDESTBREITE des Weckwort-Knopfs gehoert zwingend dazu: Sein Text
+     * wechselt zwischen "Aktivieren" und "Stoppen", und eine zentrierte
+     * Gruppe zieht ihre Breite aus den Beschriftungen - ohne sie ruecken
+     * beim Umschalten alle vier Tasten zur Seite.
      */
     @Test
     fun dieVierHaupttastenStehenNebeneinander() {
@@ -89,10 +96,14 @@ class AufbauTest {
                 reihe.contains("@+id/" + name)
             )
         }
-        assertEquals(
-            "Nicht jede Taste der Reihe teilt sich die Breite (layout_weight)",
-            4,
-            reihe.split("android:layout_weight=\"1\"").size - 1
+        assertTrue(
+            "Die Tastenreihe ist nicht mehr zentriert - sie klebte dann wieder links",
+            l.substringBefore("@+id/sendButton").contains("android:gravity=\"center_horizontal\"")
+        )
+        assertTrue(
+            "Dem Weckwort-Knopf fehlt die Mindestbreite - die Reihe wuerde beim " +
+                "Wechsel zwischen 'Aktivieren' und 'Stoppen' zur Seite ruecken",
+            reihe.substringAfter("@+id/wakeButton").contains("android:minWidth=")
         )
     }
 

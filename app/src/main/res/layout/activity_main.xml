@@ -49,20 +49,25 @@
              Vorher standen sie als vier breite Balken untereinander und
              fuellten den halben Schirm.
 
+             MITTIG statt ueber die volle Breite (ihre Wahl aus drei
+             gezeigten Anordnungen): jede Taste nur so breit wie ihr Wort,
+             die Gruppe zentriert.
+
              ZWEI DINGE, DIE HIER ZUSAMMENHAENGEN:
-             - Die Breite kommt aus layout_weight, deshalb layout_width="0dp".
-               Alle vier bekommen denselben Anteil, egal wie lang die
-               Beschriftung gerade ist (der Weckwort-Knopf wechselt zwischen
-               "Aktivieren" und "Stoppen").
-             - Der SEITLICHE Innenabstand wird hier auf 4dp gesetzt und
-               ueberstimmt damit bewusst die 16dp aus taste_graphit.xml. Ohne
-               das bliebe bei vier Tasten nebeneinander kaum Platz fuer den
-               Text. Ein im Layout gesetzter Abstand gewinnt - genau dafuer
-               ist die Stelle im Drawable kommentiert. -->
+             - Der Weckwort-Knopf hat eine MINDESTBREITE. Sein Text wechselt
+               zwischen "Aktivieren" und "Stoppen"; ohne sie wuerde beim
+               Umschalten die ganze Reihe zur Seite ruecken, weil eine
+               zentrierte Gruppe ihre Breite aus den Beschriftungen zieht.
+             - Der SEITLICHE Innenabstand wird hier gesetzt und ueberstimmt
+               damit bewusst die 16dp aus taste_graphit.xml. Bei vier Tasten
+               nebeneinander waeren die zu breit. Ein im Layout gesetzter
+               Abstand gewinnt - genau dafuer ist die Stelle im Drawable
+               kommentiert. -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
+            android:gravity="center_horizontal"
             android:layout_marginTop="10dp">
 
             <Button
@@ -70,13 +75,12 @@
                 android:background="@drawable/taste_graphit"
                 android:textColor="@color/taste_schrift"
                 android:stateListAnimator="@null"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Senden"
                 android:textSize="12sp"
-                android:paddingLeft="4dp"
-                android:paddingRight="4dp"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
                 android:paddingTop="12dp"
                 android:paddingBottom="12dp" />
 
@@ -85,14 +89,13 @@
                 android:background="@drawable/taste_graphit"
                 android:textColor="@color/taste_schrift"
                 android:stateListAnimator="@null"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="6dp"
                 android:text="Sprechen"
                 android:textSize="12sp"
-                android:paddingLeft="4dp"
-                android:paddingRight="4dp"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
                 android:paddingTop="12dp"
                 android:paddingBottom="12dp" />
 
@@ -101,14 +104,13 @@
                 android:background="@drawable/taste_graphit"
                 android:textColor="@color/taste_schrift"
                 android:stateListAnimator="@null"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="6dp"
                 android:text="Foto"
                 android:textSize="12sp"
-                android:paddingLeft="4dp"
-                android:paddingRight="4dp"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
                 android:paddingTop="12dp"
                 android:paddingBottom="12dp" />
 
@@ -117,14 +119,14 @@
                 android:background="@drawable/taste_graphit"
                 android:textColor="@color/taste_schrift"
                 android:stateListAnimator="@null"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="6dp"
                 android:text="Aktivieren"
+                android:minWidth="96dp"
                 android:textSize="12sp"
-                android:paddingLeft="4dp"
-                android:paddingRight="4dp"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
                 android:paddingTop="12dp"
                 android:paddingBottom="12dp" />
         </LinearLayout>
