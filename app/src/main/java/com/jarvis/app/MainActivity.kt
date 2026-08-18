@@ -787,6 +787,10 @@ class MainActivity : AppCompatActivity() {
         setBackgroundResource(R.drawable.taste_graphit)
         setTextColor(context.getColor(R.color.taste_schrift))
         stateListAnimator = null
+        // Keine Versalien: AppCompat schreibt Tastentexte sonst gross,
+        // was im Layout eigens abgeschaltet wird. Ohne diese Zeile
+        // saehen die Postfach-Tasten anders aus als alle anderen.
+        isAllCaps = false
     }
 
     /**

@@ -193,8 +193,17 @@ class VoiceOrbView @JvmOverloads constructor(
         // Flaeche fuellt, kann die Groesse allein ihn nicht mehr zeigen.
         val licht = 0.55f + 0.45f * f.glow
 
-        // Aussenschein
-        val scheinR = r * 2.9f
+        // AUSSENSCHEIN - und der Grund fuer die Begrenzung:
+        // Mit r * 2.9 reichte der Schein ueber die ganze Flaeche hinaus.
+        // Die View ist rechteckig, der Schein hellte sie bis in die Ecken
+        // auf - auf dem fast schwarzen App-Grund war der Orb dadurch ein
+        // sichtbares helleres RECHTECK statt einer frei schwebenden Kugel
+        // (Doreens Screenshot vom 18.08.2026). Deshalb endet der Schein
+        // nie spaeter als die halbe kurze Kante: Dort ist er auf null,
+        // und die Ecken bleiben schwarz. Die Begrenzung muss an der VIEW
+        // haengen, nicht am Radius - beim Sprechen waechst die Kugel, und
+        // ein fester Faktor liefe wieder hinaus.
+        val scheinR = (r * 1.5f).coerceAtMost(min(width, height) / 2f)
         scheinPinsel.shader = RadialGradient(
             cx, cy, scheinR,
             intArrayOf(orange(0.34f * f.glow), orange(0.13f * f.glow), orange(0f)),

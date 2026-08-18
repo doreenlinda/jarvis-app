@@ -162,6 +162,35 @@ class AufbauTest {
     }
 
     /**
+     * KEINE VERSALIEN auf den Tasten. AppCompat schreibt Tastentexte
+     * standardmaessig gross - in Doreens Screenshot vom 18.08.2026 stand
+     * deshalb "STOPPE N" mit Umbruch, und die Tasten waren breiter als in
+     * der Vorschau, nach der sie entschieden hatte.
+     *
+     * Geprueft wird das Layout UND MainActivity: Die Postfach-Tasten
+     * entstehen erst zur Laufzeit und erben nichts aus dem Layout.
+     */
+    @Test
+    fun keineVersalienAufDenTasten() {
+        val l = layout()
+        val tasten = l.split("<Button").drop(1)
+        tasten.forEach { roh ->
+            val block = roh.substringBefore("/>")
+            val name = block.substringAfter("@+id/", "unbenannt").substringBefore("\"")
+            assertTrue(
+                "Die Taste '" + name + "' schreibt wieder in Versalien - lange " +
+                    "Beschriftungen brechen dann um",
+                block.contains("android:textAllCaps=\"false\"")
+            )
+        }
+        val quelle = File("src/main/java/com/jarvis/app/MainActivity.kt").readText()
+        assertTrue(
+            "Die zur Laufzeit erzeugten Tasten schreiben wieder in Versalien",
+            quelle.contains("isAllCaps = false")
+        )
+    }
+
+    /**
      * Beim ersten Start klappt der Zugangsbereich von selbst auf. Da er
      * jetzt UNTEN steht, liegt er dabei ausserhalb des Bildes - ohne das
      * Scrollen saehe Doreen eine App ohne Eingabefelder und wuesste nicht,
