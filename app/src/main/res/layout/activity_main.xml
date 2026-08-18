@@ -27,57 +27,8 @@
         <com.jarvis.app.VoiceOrbView
             android:id="@+id/voiceOrb"
             android:layout_width="match_parent"
-            android:layout_height="180dp"
+            android:layout_height="230dp"
             android:layout_marginBottom="14dp" />
-
-        <Button
-            android:id="@+id/zugangToggle"
-            android:background="@drawable/taste_graphit"
-            android:textColor="@color/taste_schrift"
-            android:stateListAnimator="@null"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:text="Zugangsdaten einblenden"
-            android:textSize="12sp" />
-
-        <LinearLayout
-            android:id="@+id/zugangBereich"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <EditText
-                android:id="@+id/serverUrl"
-                android:background="@drawable/feld_dunkel"
-                android:textColor="@color/feld_schrift"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:hint="Server-URL (z. B. https://...ngrok-free.dev)"
-                android:inputType="textUri" />
-
-            <EditText
-                android:id="@+id/accessKey"
-                android:background="@drawable/feld_dunkel"
-                android:textColor="@color/feld_schrift"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:hint="Zugangsschluessel"
-                android:inputType="textPassword" />
-
-            <EditText
-                android:id="@+id/e2eKey"
-                android:background="@drawable/feld_dunkel"
-                android:textColor="@color/feld_schrift"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:hint="Schluessel (E2E) - leer lassen = unverschluesselt"
-                android:inputType="textPassword" />
-        </LinearLayout>
 
         <EditText
             android:id="@+id/messageText"
@@ -152,6 +103,55 @@
              automatisch auf UND die Seite scrollt hierher (siehe
              MainActivity) - sonst stuende sie vor einer App, deren
              Eingabefelder ausserhalb des Bildes liegen. -->
+        <Button
+            android:id="@+id/zugangToggle"
+            android:background="@drawable/taste_graphit"
+            android:textColor="@color/taste_schrift"
+            android:stateListAnimator="@null"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="Zugangsdaten einblenden"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:id="@+id/zugangBereich"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/serverUrl"
+                android:background="@drawable/feld_dunkel"
+                android:textColor="@color/feld_schrift"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Server-URL (z. B. https://...ngrok-free.dev)"
+                android:inputType="textUri" />
+
+            <EditText
+                android:id="@+id/accessKey"
+                android:background="@drawable/feld_dunkel"
+                android:textColor="@color/feld_schrift"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Zugangsschluessel"
+                android:inputType="textPassword" />
+
+            <EditText
+                android:id="@+id/e2eKey"
+                android:background="@drawable/feld_dunkel"
+                android:textColor="@color/feld_schrift"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Schluessel (E2E) - leer lassen = unverschluesselt"
+                android:inputType="textPassword" />
+        </LinearLayout>
+
         <!-- v0.42 (Doreens Wunsch, 18.08.2026): Die drei Schalter liegen
              hinter einem Knopf, "damit die App nicht so ueberladen wirkt".
              Standardmaessig ZU.

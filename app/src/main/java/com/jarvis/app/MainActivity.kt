@@ -192,7 +192,7 @@ class MainActivity : AppCompatActivity() {
         // Knopf sitzt.
         if (nochNichtEingerichtet) {
             val seite = findViewById<android.widget.ScrollView>(R.id.seite)
-            seite.post { /* SABOTAGE */ }
+            seite.post { seite.smoothScrollTo(0, zugangToggle.top) }
         }
 
         // Dieselbe Mechanik fuer die drei Schalter (v0.42, Doreens Wunsch:
