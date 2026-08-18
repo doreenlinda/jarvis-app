@@ -93,8 +93,6 @@
 
         <Button
             android:id="@+id/sendButton"
-            android:background="@drawable/taste_graphit"
-            android:textColor="@color/taste_schrift"
             android:stateListAnimator="@null"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
