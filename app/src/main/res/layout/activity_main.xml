@@ -40,54 +40,94 @@
             android:inputType="textMultiLine"
             android:minLines="2" />
 
-        <Button
-            android:id="@+id/sendButton"
-            android:background="@drawable/taste_graphit"
-            android:textColor="@color/taste_schrift"
-            android:stateListAnimator="@null"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Text senden"
-            android:layout_marginTop="8dp" />
+        <!-- Die vier Haupttasten in EINER Reihe, klein und ohne Symbole
+             (Doreens Wunsch vom 18.08.2026, nach der Vorschau: "Genau so
+             angeordnet, kleiner Senden, Sprechen, Foto/Scannen, Stoppen und
+             ohne die extra Symbole drauf ... das wuerde auch alles nochmal
+             aufgeraeumter wirken lassen").
 
-        <Button
-            android:id="@+id/talkButton"
-            android:background="@drawable/taste_graphit"
-            android:textColor="@color/taste_schrift"
-            android:stateListAnimator="@null"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🎤 Sprechen"
-            android:textSize="18sp"
-            android:layout_marginTop="16dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="16dp" />
+             Vorher standen sie als vier breite Balken untereinander und
+             fuellten den halben Schirm.
 
-        <Button
-            android:id="@+id/cameraButton"
-            android:background="@drawable/taste_graphit"
-            android:textColor="@color/taste_schrift"
-            android:stateListAnimator="@null"
+             ZWEI DINGE, DIE HIER ZUSAMMENHAENGEN:
+             - Die Breite kommt aus layout_weight, deshalb layout_width="0dp".
+               Alle vier bekommen denselben Anteil, egal wie lang die
+               Beschriftung gerade ist (der Weckwort-Knopf wechselt zwischen
+               "Aktivieren" und "Stoppen").
+             - Der SEITLICHE Innenabstand wird hier auf 4dp gesetzt und
+               ueberstimmt damit bewusst die 16dp aus taste_graphit.xml. Ohne
+               das bliebe bei vier Tasten nebeneinander kaum Platz fuer den
+               Text. Ein im Layout gesetzter Abstand gewinnt - genau dafuer
+               ist die Stelle im Drawable kommentiert. -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="📷 Zeigen / Scannen"
-            android:textSize="18sp"
-            android:layout_marginTop="8dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="16dp" />
+            android:orientation="horizontal"
+            android:layout_marginTop="10dp">
 
-        <Button
-            android:id="@+id/wakeButton"
-            android:background="@drawable/taste_graphit"
-            android:textColor="@color/taste_schrift"
-            android:stateListAnimator="@null"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🟢 „Hey Jarvis” aktivieren"
-            android:textSize="18sp"
-            android:layout_marginTop="8dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="16dp" />
+            <Button
+                android:id="@+id/sendButton"
+                android:background="@drawable/taste_graphit"
+                android:textColor="@color/taste_schrift"
+                android:stateListAnimator="@null"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Senden"
+                android:textSize="12sp"
+                android:paddingLeft="4dp"
+                android:paddingRight="4dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp" />
+
+            <Button
+                android:id="@+id/talkButton"
+                android:background="@drawable/taste_graphit"
+                android:textColor="@color/taste_schrift"
+                android:stateListAnimator="@null"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="6dp"
+                android:text="Sprechen"
+                android:textSize="12sp"
+                android:paddingLeft="4dp"
+                android:paddingRight="4dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp" />
+
+            <Button
+                android:id="@+id/cameraButton"
+                android:background="@drawable/taste_graphit"
+                android:textColor="@color/taste_schrift"
+                android:stateListAnimator="@null"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="6dp"
+                android:text="Foto"
+                android:textSize="12sp"
+                android:paddingLeft="4dp"
+                android:paddingRight="4dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp" />
+
+            <Button
+                android:id="@+id/wakeButton"
+                android:background="@drawable/taste_graphit"
+                android:textColor="@color/taste_schrift"
+                android:stateListAnimator="@null"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="6dp"
+                android:text="Aktivieren"
+                android:textSize="12sp"
+                android:paddingLeft="4dp"
+                android:paddingRight="4dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp" />
+        </LinearLayout>
 
         <!-- Zugangsdaten liegen hinter einem Schalter und sind standardmaessig
              ZU. Sie braucht sie nur einmal je Installation, aber sie landen

@@ -327,8 +327,11 @@ class MainActivity : AppCompatActivity() {
         val wakeButton = findViewById<Button>(R.id.wakeButton)
 
         fun setzeWakeText() {
+            // Kurz und ohne Symbol: Die vier Haupttasten stehen seit v0.44
+            // nebeneinander, da passt keine lange Beschriftung mehr hinein.
+            // Was der Knopf betrifft, sagt die Statuszeile darunter.
             wakeButton.text = if (prefs.getBoolean("wake_aktiv", false))
-                "🔴 „Hey Jarvis” stoppen" else "🟢 „Hey Jarvis” aktivieren"
+                "Stoppen" else "Aktivieren"
         }
         setzeWakeText()
 
@@ -523,7 +526,7 @@ class MainActivity : AppCompatActivity() {
             recorder = rec
             audioFile = file
             isRecording = true
-            talkButton.text = "⏹ Aufnahme läuft – zum Stoppen tippen"
+            talkButton.text = "Beenden"
             answerView.text = "Ich höre zu …"
         } catch (e: Exception) {
             answerView.text = "Aufnahme konnte nicht starten: ${e.message}"
@@ -540,7 +543,7 @@ class MainActivity : AppCompatActivity() {
         } finally {
             releaseRecorder()
         }
-        talkButton.text = "🎤 Sprechen"
+        talkButton.text = "Sprechen"
         if (file == null || !file.exists() || file.length() == 0L) {
             answerView.text = "Die Aufnahme war leer – bitte nochmal versuchen."
             return

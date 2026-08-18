@@ -1,5 +1,6 @@
 package com.jarvis.app
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -63,6 +64,67 @@ class AufbauTest {
                 "Sprechen oben und unten anstossen",
             block.contains("android:layout_height=\"230dp\"")
         )
+    }
+
+    /**
+     * Die vier Haupttasten stehen in EINER Reihe (Doreens Wunsch vom
+     * 18.08.2026: "kleiner Senden, Sprechen, Foto/Scannen, Stoppen ... das
+     * wuerde auch alles nochmal aufgeraeumter wirken lassen"). Vorher waren
+     * es vier breite Balken untereinander.
+     *
+     * Die Breite kommt aus layout_weight - ohne das waere eine Taste so
+     * breit wie ihre gerade eingestellte Beschriftung, und die Reihe
+     * huepfte, sobald der Weckwort-Knopf zwischen "Aktivieren" und
+     * "Stoppen" wechselt.
+     */
+    @Test
+    fun dieVierHaupttastenStehenNebeneinander() {
+        val l = layout()
+        val reihe = l.substringAfter("android:orientation=\"horizontal\"", "")
+            .substringBefore("</LinearLayout>")
+        assertTrue("Es gibt keine waagerechte Tastenreihe mehr", reihe.isNotEmpty())
+        listOf("sendButton", "talkButton", "cameraButton", "wakeButton").forEach { name ->
+            assertTrue(
+                "Die Taste '" + name + "' steht nicht mehr in der Reihe",
+                reihe.contains("@+id/" + name)
+            )
+        }
+        assertEquals(
+            "Nicht jede Taste der Reihe teilt sich die Breite (layout_weight)",
+            4,
+            reihe.split("android:layout_weight=\"1\"").size - 1
+        )
+    }
+
+    /**
+     * KEINE Symbole auf den Tasten (ihr Wunsch, gleicher Tag). Geprueft wird
+     * das Layout UND MainActivity: Drei der Beschriftungen werden zur
+     * Laufzeit neu gesetzt - wer nur das Layout saeubert, holt sich die
+     * Symbole beim ersten Antippen zurueck.
+     *
+     * Die Schwelle liegt bei U+2300, damit Umlaute, Gedankenstriche und
+     * typografische Anfuehrungszeichen ausdruecklich erlaubt bleiben.
+     */
+    @Test
+    fun keineSymboleAufDenTasten() {
+        val stellen = mutableListOf<String>()
+        layout().split("<Button").drop(1).forEach { roh ->
+            val block = roh.substringBefore("/>")
+            if (block.contains("android:text=\"")) {
+                stellen += block.substringAfter("android:text=\"").substringBefore("\"")
+            }
+        }
+        val quelle = File("src/main/java/com/jarvis/app/MainActivity.kt").readText()
+        quelle.lines().filter { it.contains("Button.text = \"") || it.contains("\"Stoppen\"") }
+            .forEach { stellen += it }
+
+        stellen.forEach { text ->
+            val symbol = text.firstOrNull { it.code >= 0x2300 }
+            assertTrue(
+                "Symbol '" + symbol + "' in einer Tastenbeschriftung: " + text.trim(),
+                symbol == null
+            )
+        }
     }
 
     /**
