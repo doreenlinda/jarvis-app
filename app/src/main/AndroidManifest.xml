@@ -59,7 +59,7 @@
         android:allowBackup="true"
         android:label="Jarvis"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Jarvis">
+        android:theme="@style/Theme.AppCompat.DayNight">
 
         <activity
             android:name=".MainActivity"
