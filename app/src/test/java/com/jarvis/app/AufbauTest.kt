@@ -128,6 +128,29 @@ class AufbauTest {
     }
 
     /**
+     * Die beiden Klapp-Knoepfe sind gleich breit (ihr Wunsch, gleicher Tag:
+     * "Die Taste 'Zugangsdaten einblenden' muesste dann aber genauso lang
+     * und breit wie die 'Einstellungen einblenden'").
+     *
+     * Mit wrap_content waren sie es NICHT: Der Einstellungs-Knopf traegt
+     * seine Kurzuebersicht mit ("... (Standort an, WhatsApp an, Vorlesen
+     * aus)") und wurde dadurch deutlich breiter. Volle Breite loest das
+     * unabhaengig davon, wie lang die Uebersicht gerade ausfaellt.
+     */
+    @Test
+    fun beideKlappknoepfeSindGleichBreit() {
+        val l = layout()
+        listOf("zugangToggle", "einstellungenToggle").forEach { name ->
+            val block = l.substringAfter("@+id/" + name).substringBefore("/>")
+            assertTrue(
+                "Der Knopf '" + name + "' hat nicht die volle Breite - die beiden " +
+                    "waeren wieder unterschiedlich breit",
+                block.contains("android:layout_width=\"match_parent\"")
+            )
+        }
+    }
+
+    /**
      * Beim ersten Start klappt der Zugangsbereich von selbst auf. Da er
      * jetzt UNTEN steht, liegt er dabei ausserhalb des Bildes - ohne das
      * Scrollen saehe Doreen eine App ohne Eingabefelder und wuesste nicht,
