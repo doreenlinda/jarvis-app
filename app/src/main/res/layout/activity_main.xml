@@ -19,21 +19,7 @@
             android:id="@+id/voiceOrb"
             android:layout_width="match_parent"
             android:layout_height="180dp"
-            android:layout_marginBottom="6dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Jarvis – Testverbindung"
-            android:textSize="22sp"
-            android:paddingBottom="4dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Sprich mit Jarvis oder tippe eine Nachricht."
-            android:textSize="13sp"
-            android:paddingBottom="16dp" />
+            android:layout_marginBottom="16dp" />
 
         <!-- Zugangsdaten liegen hinter einem Schalter und sind standardmaessig
              ZU. Sie braucht sie nur einmal je Installation, aber sie stehen
