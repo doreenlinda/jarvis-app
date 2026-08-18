@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tastenfarbe, Doreens Wahl vom 18.08.2026 (Variante B einer Vorschau mit
+  drei Graphit-Toenen). Vorher trugen die Tasten das helle Systemgrau.
+
+  Die Werte stammen aus der Palette des Dashboards, damit App und Dashboard
+  denselben Eindruck machen: dort ist #2E2E2E die Graphit-Linie und #E8E8E8
+  die Schrift. Variante B liegt bewusst eine Spur heller als das Dashboard-
+  Graphit - die App folgt dem Hell-/Dunkelmodus des Handys, und im
+  Dunkelmodus wuerde ein zu dunkler Ton mit dem Hintergrund verschwimmen.
+-->
+<resources>
+    <color name="taste_graphit">#3A3A3A</color>
+    <!-- Gedrueckt: eine Stufe heller. Die eigene Hintergrundgrafik ersetzt
+         den Standard-Effekt der Taste, deshalb muss die Rueckmeldung beim
+         Antippen hier selbst herkommen - sonst fuehlt sich die Taste tot an. -->
+    <color name="taste_graphit_gedrueckt">#4E4E4E</color>
+    <color name="taste_rand">#4A4A4A</color>
+    <color name="taste_schrift">#E8E8E8</color>
+</resources>

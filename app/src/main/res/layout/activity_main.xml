@@ -43,6 +43,9 @@
              Daten klappt der Bereich automatisch auf. -->
         <Button
             android:id="@+id/zugangToggle"
+            android:background="@drawable/taste_graphit"
+            android:textColor="@color/taste_schrift"
+            android:stateListAnimator="@null"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Zugangsdaten einblenden"
@@ -90,6 +93,9 @@
 
         <Button
             android:id="@+id/sendButton"
+            android:background="@drawable/taste_graphit"
+            android:textColor="@color/taste_schrift"
+            android:stateListAnimator="@null"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Text senden"
@@ -97,6 +103,9 @@
 
         <Button
             android:id="@+id/talkButton"
+            android:background="@drawable/taste_graphit"
+            android:textColor="@color/taste_schrift"
+            android:stateListAnimator="@null"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="🎤 Sprechen"
@@ -107,6 +116,9 @@
 
         <Button
             android:id="@+id/cameraButton"
+            android:background="@drawable/taste_graphit"
+            android:textColor="@color/taste_schrift"
+            android:stateListAnimator="@null"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="📷 Zeigen / Scannen"
@@ -117,6 +129,9 @@
 
         <Button
             android:id="@+id/wakeButton"
+            android:background="@drawable/taste_graphit"
+            android:textColor="@color/taste_schrift"
+            android:stateListAnimator="@null"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="🟢 „Hey Jarvis” aktivieren"

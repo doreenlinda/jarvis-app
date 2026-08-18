@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hintergrund der Tasten (Farben in values/colors.xml). Bewusst ein Selector
+  mit eigenem Gedrueckt-Zustand: Eine gesetzte android:background ersetzt den
+  mitgelieferten Hintergrund samt seiner Antipp-Rueckmeldung - ohne den
+  zweiten Zustand fuehlte sich die Taste tot an.
+
+  Zwei Dinge, die die Standard-Taste mitbrachte und hier nachgebaut werden
+  muessen:
+  - der RAND: im Dunkelmodus des Handys hebt er die Taste vom Hintergrund ab.
+  - der INNENABSTAND: ohne ihn klebt die Schrift am Rand. Sichtbar bei den
+    Tasten, die im Layout keinen eigenen Abstand setzen ("Zugangsdaten
+    einblenden", "Text senden") und bei den Tasten im Postfach, die zur
+    Laufzeit entstehen. Ein im Layout gesetzter Abstand gewinnt weiterhin.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/taste_graphit_gedrueckt" />
+            <stroke android:width="1dp" android:color="@color/taste_rand" />
+            <corners android:radius="8dp" />
+            <padding android:left="16dp" android:top="10dp"
+                     android:right="16dp" android:bottom="10dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/taste_graphit" />
+            <stroke android:width="1dp" android:color="@color/taste_rand" />
+            <corners android:radius="8dp" />
+            <padding android:left="16dp" android:top="10dp"
+                     android:right="16dp" android:bottom="10dp" />
+        </shape>
+    </item>
+</selector>

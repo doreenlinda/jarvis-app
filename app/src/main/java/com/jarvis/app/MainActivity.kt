@@ -708,6 +708,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Faerbt eine zur Laufzeit erzeugte Taste im Graphit der App
+     * (Doreens Wahl vom 18.08.2026). Die Tasten im Layout tragen dasselbe
+     * ueber android:background - hier geht das nicht, weil die Tasten des
+     * Postfachs erst beim Anzeigen entstehen.
+     *
+     * Ohne diese Funktion haette die App graphitfarbene Haupttasten ueber
+     * hellgrauen Postfach-Tasten - genau der halbe Anstrich, der schlimmer
+     * aussieht als gar keiner.
+     *
+     * stateListAnimator = null: Die Standard-Taste hebt sich beim Antippen
+     * leicht an (Schattenwurf). Mit einer flachen eigenen Hintergrundgrafik
+     * sieht das nach einem Fehler aus; die Rueckmeldung liefert stattdessen
+     * der Gedrueckt-Zustand der Grafik selbst.
+     */
+    private fun Button.graphit(): Button = apply {
+        setBackgroundResource(R.drawable.taste_graphit)
+        setTextColor(context.getColor(R.color.taste_schrift))
+        stateListAnimator = null
+    }
+
+    /**
      * Zeigt die Nachrichten, die Jarvis von sich aus geschickt hat
      * (Briefings, Manus-Ergebnisse) - seit v0.22 an Telegrams Stelle.
      * Bewusst programmatisch statt mit einer Listen-Mechanik: Es sind
@@ -731,6 +752,7 @@ class MainActivity : AppCompatActivity() {
         // Fehlgriff würde sonst ein noch ungelesenes Manus-Ergebnis mitnehmen.
         liste.addView(Button(this).apply {
             text = "Alle löschen"
+            graphit()
             setOnClickListener {
                 android.app.AlertDialog.Builder(this@MainActivity)
                     .setTitle("Alle Nachrichten löschen?")
@@ -783,11 +805,13 @@ class MainActivity : AppCompatActivity() {
                 if (audio != null && File(audio).exists()) {
                     addView(Button(this@MainActivity).apply {
                         text = "▶ Anhören"
+                        graphit()
                         setOnClickListener { spieleDatei(audio) }
                     })
                 }
                 addView(Button(this@MainActivity).apply {
                     text = "Löschen"
+                    graphit()
                     // Bewusst ohne Rückfrage: Es geht um EINE Zeile in einer
                     // Anzeige, nichts Unwiederbringliches - eine Nachfrage bei
                     // jedem Antippen wäre genau die Zumutung, die sie am
