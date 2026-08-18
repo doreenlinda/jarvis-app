@@ -740,7 +740,6 @@ class MainActivity : AppCompatActivity() {
 
     /** Haken und Hinweis zum WhatsApp-Mitlesen auf den aktuellen Stand bringen. */
     private fun zeigeWhatsAppStatus() {
-        aktualisiereEinstellungsUebersicht()
         val schalter = findViewById<android.widget.CheckBox>(R.id.whatsappSchalter) ?: return
         val info = findViewById<TextView>(R.id.whatsappInfo) ?: return
         val erteilt = WhatsAppLauscher.zugriffErteilt(this)
