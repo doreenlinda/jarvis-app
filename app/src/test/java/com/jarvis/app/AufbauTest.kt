@@ -103,8 +103,41 @@ class AufbauTest {
         assertTrue(
             "Dem Weckwort-Knopf fehlt die Mindestbreite - die Reihe wuerde beim " +
                 "Wechsel zwischen 'Aktivieren' und 'Stoppen' zur Seite ruecken",
-            reihe.substringAfter("@+id/wakeButton").contains("android:minWidth=")
+            reihe.substringAfter("@+id/wakeButton").contains("android:minWidth=\"84dp\"")
         )
+    }
+
+    /**
+     * AppCompat gibt JEDER Taste eine Mindestbreite von 88dp und 4dp
+     * Rand-Einzug mit - beides steht nirgends im Layout. Vier Tasten
+     * brauchen damit rund 370dp, verfuegbar sind auf Doreens Handy etwa
+     * 328dp: Die Reihe wurde auf die volle Breite gedrueckt, und die
+     * Zentrierung hatte nichts mehr zu verteilen (ihr Screenshot vom
+     * 18.08.2026, 21:50: "die Tasten sind nicht mittig, sondern fuellen
+     * die ganze Spalte aus").
+     *
+     * Ohne diese Angaben ist "mittig" also wirkungslos - deshalb gehoeren
+     * sie zusammen geprueft.
+     */
+    @Test
+    fun dieTastenTragenNichtDieVorgabenVonAppCompat() {
+        val reihe = layout().substringAfter("android:orientation=\"horizontal\"", "")
+            .substringBefore("</LinearLayout>")
+        reihe.split("<Button").drop(1).forEach { roh ->
+            val block = roh.substringBefore("/>")
+            val name = block.substringAfter("@+id/", "unbenannt").substringBefore("\"")
+            assertTrue(
+                "Die Taste '" + name + "' traegt wieder AppCompats Rand-Einzug - " +
+                    "die Reihe wird dadurch breiter als noetig",
+                block.contains("android:insetLeft=\"0dp\"") &&
+                    block.contains("android:insetRight=\"0dp\"")
+            )
+            assertTrue(
+                "Die Taste '" + name + "' traegt keine eigene Mindestbreite - " +
+                    "AppCompats 88dp wuerden die Reihe auf die volle Breite druecken",
+                block.contains("android:minWidth=")
+            )
+        }
     }
 
     /**
