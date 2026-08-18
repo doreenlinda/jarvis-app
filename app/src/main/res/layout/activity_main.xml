@@ -140,72 +140,102 @@
             android:paddingTop="16dp"
             android:paddingBottom="16dp" />
 
-        <!-- v0.31: Standort mitschicken. Bewusst NICHT hinter den
-             Zugangsdaten versteckt, sondern gleich sichtbar - sie soll die
-             Ortung im Vorbeigehen abstellen koennen, ohne die Berechtigung
-             in den Android-Einstellungen zurueckzunehmen. Darunter steht,
-             welchen Ort die App gerade kennt: Ohne diese Anzeige waere im
-             Alltag nicht pruefbar, ob die Ortung ueberhaupt etwas liefert. -->
-        <CheckBox
-            android:id="@+id/standortSchalter"
-            android:layout_width="match_parent"
+        <!-- v0.42 (Doreens Wunsch, 18.08.2026): Die drei Schalter liegen
+             jetzt hinter einem Knopf, "damit die App nicht so ueberladen
+             wirkt". Standardmaessig ZU.
+
+             Der Grund, aus dem sie frueher offen dastanden, bleibt dabei
+             erhalten: Sie soll SEHEN, was gerade an ist, ohne erst zu
+             tippen - deshalb traegt der Knopf im zugeklappten Zustand eine
+             Kurzuebersicht (siehe aktualisiereEinstellungsUebersicht).
+             Ohne die waere es ein Rueckschritt: Ob das WhatsApp-Mitlesen
+             laeuft, war im Alltag schon einmal die entscheidende Frage. -->
+        <Button
+            android:id="@+id/einstellungenToggle"
+            android:background="@drawable/taste_graphit"
+            android:textColor="@color/taste_schrift"
+            android:stateListAnimator="@null"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:textSize="14sp"
-            android:text="Standort mitschicken (für Empfehlungen unterwegs)" />
+            android:text="Einstellungen einblenden"
+            android:textSize="12sp" />
 
-        <TextView
-            android:id="@+id/standortInfo"
+        <LinearLayout
+            android:id="@+id/einstellungenBereich"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="2dp"
-            android:textSize="13sp"
-            android:textStyle="italic"
-            android:text="" />
+            android:orientation="vertical"
+            android:visibility="gone">
 
-        <!-- v0.32: WhatsApp mitlesen. Wie beim Standort zwei Schalter - der
-             Systemzugriff auf Benachrichtigungen UND dieser hier, damit sich
-             das Mitlesen im Vorbeigehen abstellen laesst, ohne die
-             Systemberechtigung zurueckzunehmen. Darunter steht, ob der
-             Zugriff ueberhaupt erteilt ist; ohne diese Anzeige waere im
-             Alltag nicht erkennbar, warum nichts ankommt. -->
-        <CheckBox
-            android:id="@+id/whatsappSchalter"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:textSize="14sp"
-            android:text="WhatsApp mitlesen (Terminabsagen von Kundinnen)" />
+            <!-- v0.31: Standort mitschicken. Seit v0.42 eingeklappt (siehe
+                 oben) - der Schalter ist dafuer da, dass sie die Ortung im
+                 Vorbeigehen abstellen kann, ohne die Berechtigung
+                 in den Android-Einstellungen zurueckzunehmen. Darunter steht,
+                 welchen Ort die App gerade kennt: Ohne diese Anzeige waere im
+                 Alltag nicht pruefbar, ob die Ortung ueberhaupt etwas liefert. -->
+            <CheckBox
+                android:id="@+id/standortSchalter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:textSize="14sp"
+                android:text="Standort mitschicken (für Empfehlungen unterwegs)" />
 
-        <TextView
-            android:id="@+id/whatsappInfo"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="2dp"
-            android:textSize="13sp"
-            android:textStyle="italic"
-            android:text="" />
+            <TextView
+                android:id="@+id/standortInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="2dp"
+                android:textSize="13sp"
+                android:textStyle="italic"
+                android:text="" />
 
-        <!-- v0.33: Standardmaessig AUS. Eine dringende Meldung kann eine sehr
-             persoenliche Notlage betreffen - laut vorgelesen im Kundengespraech
-             waere das der teure Fehler. Wer den Haken im Auto setzt und
-             vergisst zurueckzustellen, faellt in den sicheren Zustand. -->
-        <CheckBox
-            android:id="@+id/inhaltVorlesenSchalter"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:textSize="14sp"
-            android:text="Dringendes laut vorlesen" />
+            <!-- v0.32: WhatsApp mitlesen. Wie beim Standort zwei Schalter - der
+                 Systemzugriff auf Benachrichtigungen UND dieser hier, damit sich
+                 das Mitlesen im Vorbeigehen abstellen laesst, ohne die
+                 Systemberechtigung zurueckzunehmen. Darunter steht, ob der
+                 Zugriff ueberhaupt erteilt ist; ohne diese Anzeige waere im
+                 Alltag nicht erkennbar, warum nichts ankommt. -->
+            <CheckBox
+                android:id="@+id/whatsappSchalter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:textSize="14sp"
+                android:text="WhatsApp mitlesen (Terminabsagen von Kundinnen)" />
 
-        <TextView
-            android:id="@+id/inhaltVorlesenInfo"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="2dp"
-            android:textSize="13sp"
-            android:textStyle="italic"
-            android:text="" />
+            <TextView
+                android:id="@+id/whatsappInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="2dp"
+                android:textSize="13sp"
+                android:textStyle="italic"
+                android:text="" />
+
+            <!-- v0.33: Standardmaessig AUS. Eine dringende Meldung kann eine sehr
+                 persoenliche Notlage betreffen - laut vorgelesen im Kundengespraech
+                 waere das der teure Fehler. Wer den Haken im Auto setzt und
+                 vergisst zurueckzustellen, faellt in den sicheren Zustand. -->
+            <CheckBox
+                android:id="@+id/inhaltVorlesenSchalter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textSize="14sp"
+                android:text="Dringendes laut vorlesen" />
+
+            <TextView
+                android:id="@+id/inhaltVorlesenInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="2dp"
+                android:textSize="13sp"
+                android:textStyle="italic"
+                android:text="" />
+        </LinearLayout>
+
 
         <TextView
             android:id="@+id/wakeStatusView"

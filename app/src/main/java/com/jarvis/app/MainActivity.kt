@@ -184,6 +184,20 @@ class MainActivity : AppCompatActivity() {
             zugangToggle.text = if (zu) "Zugangsdaten ausblenden" else "Zugangsdaten einblenden"
         }
 
+        // Dieselbe Mechanik fuer die drei Schalter (v0.42, Doreens Wunsch:
+        // "damit die App nicht so ueberladen wirkt"). Anders als bei den
+        // Zugangsdaten klappt hier nie etwas von selbst auf - die Schalter
+        // sind einmal gesetzt und bleiben es.
+        val einstellungenBereich =
+            findViewById<android.widget.LinearLayout>(R.id.einstellungenBereich)
+        val einstellungenToggle = findViewById<Button>(R.id.einstellungenToggle)
+        einstellungenToggle.setOnClickListener {
+            val zu = einstellungenBereich.visibility != android.view.View.VISIBLE
+            einstellungenBereich.visibility =
+                if (zu) android.view.View.VISIBLE else android.view.View.GONE
+            aktualisiereEinstellungsUebersicht()
+        }
+
         sendButton.setOnClickListener {
             val msg = textField.text.toString().trim()
             if (msg.isEmpty()) { answerView.text = "Bitte eine Nachricht eingeben."; return@setOnClickListener }
@@ -349,7 +363,38 @@ class MainActivity : AppCompatActivity() {
      * Rateraten pruefbar ist, ob die Ortung liefert. Sie sieht hier genau
      * den Text, der an Jarvis geht.
      */
+    /**
+     * Beschriftet den Einstellungs-Knopf - im zugeklappten Zustand MIT dem
+     * Stand der drei Schalter.
+     *
+     * WARUM DIE UEBERSICHT (18.08.2026): Die drei Schalter standen bisher
+     * offen da, damit Doreen SIEHT, was gerade laeuft. Sie hinter einen Knopf
+     * zu legen war ihr Wunsch - ohne Kurzuebersicht waere es aber ein
+     * Rueckschritt: "Liest er WhatsApp gerade mit?" war im Alltag schon die
+     * entscheidende Frage. Aufgeklappt entfaellt die Uebersicht, dann stehen
+     * die Schalter samt ihren Erklaerungen ohnehin darunter.
+     */
+    private fun aktualisiereEinstellungsUebersicht() {
+        val knopf = findViewById<Button>(R.id.einstellungenToggle) ?: return
+        val bereich =
+            findViewById<android.widget.LinearLayout>(R.id.einstellungenBereich) ?: return
+        if (bereich.visibility == android.view.View.VISIBLE) {
+            knopf.text = "Einstellungen ausblenden"
+            return
+        }
+        val teile = listOf(
+            "Standort" to R.id.standortSchalter,
+            "WhatsApp" to R.id.whatsappSchalter,
+            "Vorlesen" to R.id.inhaltVorlesenSchalter,
+        ).joinToString(", ") { (name, id) ->
+            val an = findViewById<android.widget.CheckBox>(id)?.isChecked == true
+            name + (if (an) " an" else " aus")
+        }
+        knopf.text = "Einstellungen einblenden (" + teile + ")"
+    }
+
     private fun zeigeStandort() {
+        aktualisiereEinstellungsUebersicht()
         val feld = findViewById<TextView>(R.id.standortInfo) ?: return
         val schalter = findViewById<android.widget.CheckBox>(R.id.standortSchalter)
         schalter?.isChecked = Standort.eingeschaltet(this) && Standort.erlaubt(this)
@@ -654,6 +699,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Haken und Hinweis zum lauten Vorlesen dringender Meldungen. */
     private fun zeigeVorlesenStatus() {
+        aktualisiereEinstellungsUebersicht()
         val schalter = findViewById<android.widget.CheckBox>(R.id.inhaltVorlesenSchalter) ?: return
         val info = findViewById<TextView>(R.id.inhaltVorlesenInfo) ?: return
         val an = DringendAusgabe.inhaltVorlesen(this)
@@ -694,6 +740,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Haken und Hinweis zum WhatsApp-Mitlesen auf den aktuellen Stand bringen. */
     private fun zeigeWhatsAppStatus() {
+        aktualisiereEinstellungsUebersicht()
         val schalter = findViewById<android.widget.CheckBox>(R.id.whatsappSchalter) ?: return
         val info = findViewById<TextView>(R.id.whatsappInfo) ?: return
         val erteilt = WhatsAppLauscher.zugriffErteilt(this)

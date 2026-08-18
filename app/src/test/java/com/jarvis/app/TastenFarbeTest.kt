@@ -56,7 +56,10 @@ class TastenFarbeTest {
     fun jedeTasteImLayoutIstGefaerbt() {
         val layout = lies("src/main/res/layout/activity_main.xml")
         val tasten = layout.split("<Button").drop(1)
-        assertEquals("Anzahl der Tasten im Layout hat sich geaendert", 5, tasten.size)
+        // 6 seit v0.42: Der Einstellungs-Knopf ist dazugekommen, der die drei
+        // Schalter einklappt (Doreens Wunsch, 18.08.2026). Testdaten bewusst
+        // angepasst - die Pruefung selbst bleibt: JEDE Taste traegt den Anstrich.
+        assertEquals("Anzahl der Tasten im Layout hat sich geaendert", 6, tasten.size)
         tasten.forEach { roh ->
             val block = roh.substringBefore("/>")
             // Bewusst ohne regulaeren Ausdruck: Der Name dient nur der
