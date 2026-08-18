@@ -132,7 +132,6 @@
                 android:textColor="@color/taste_schrift"
                 android:stateListAnimator="@null"
                 android:textAllCaps="false"
-                android:minWidth="0dp"
                 android:insetLeft="0dp"
                 android:insetRight="0dp"
                 android:layout_width="wrap_content"
