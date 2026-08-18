@@ -59,7 +59,10 @@ class TastenFarbeTest {
         assertEquals("Anzahl der Tasten im Layout hat sich geaendert", 5, tasten.size)
         tasten.forEach { roh ->
             val block = roh.substringBefore("/>")
-            val name = Regex("@\+id/(\w+)").find(block)?.groupValues?.get(1) ?: "unbenannt"
+            // Bewusst ohne regulaeren Ausdruck: Der Name dient nur der
+            // Fehlermeldung, und einfache Zeichenkettenschnitte sind hier
+            // weniger fehleranfaellig als Maskierungen.
+            val name = block.substringAfter("@+id/", "unbenannt").substringBefore("\"")
             assertTrue(
                 "Taste '" + name + "' hat keinen Graphit-Hintergrund",
                 block.contains("android:background=\"@drawable/taste_graphit\"")
@@ -78,13 +81,12 @@ class TastenFarbeTest {
     @Test
     fun auchDieTastenDesPostfachsSindGefaerbt() {
         val quelle = lies("src/main/java/com/jarvis/app/MainActivity.kt")
-        val erzeugt = Regex("Button\(this(@MainActivity)?\)\.apply")
-            .findAll(quelle).count()
+        val erzeugt = quelle.split("Button(this").size - 1
         assertEquals("Anzahl der zur Laufzeit erzeugten Tasten hat sich geaendert", 3, erzeugt)
         assertEquals(
             "Nicht jede zur Laufzeit erzeugte Taste ruft graphit()",
             erzeugt,
-            Regex("^\s*graphit\(\)$", RegexOption.MULTILINE).findAll(quelle).count()
+            quelle.lines().count { it.trim() == "graphit()" }
         )
     }
 
@@ -99,7 +101,7 @@ class TastenFarbeTest {
         assertEquals(
             "Nicht jeder Zustand der Grafik hat einen Innenabstand",
             2,
-            Regex("<padding").findAll(grafik).count()
+            grafik.split("<padding").size - 1
         )
         assertTrue(
             "Der Gedrueckt-Zustand fehlt - die Taste fuehlte sich beim Antippen tot an",
