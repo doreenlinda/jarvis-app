@@ -168,6 +168,19 @@ class WakeWordService : Service() {
         private const val NACHSEHEN_INTERVALL_MS = 60_000L
 
         /**
+         * Die Ortszonen werden SELTENER geprueft als das Postfach.
+         *
+         * WARUM NICHT IM SELBEN TAKT: Eine Zonenpruefung fragt die Position
+         * ab, und das kostet Akku - der Dienst haelt ohnehin schon einen
+         * Wake Lock. Zwei Minuten sind fuer Zonen reichlich: In der Zeit
+         * legt sie zu Fuss keine 200 m zurueck, und im Auto ist der genaue
+         * Moment des Ueberquerens ohnehin nicht das, worauf es ankommt.
+         * Was das im Alltag wirklich kostet, ist eine der Fragen, die
+         * Etappe 1 beantworten soll.
+         */
+        private const val GEOFENCE_INTERVALL_MS = 120_000L
+
+        /**
          * Laenge des Wecktons vor der Ansage. Lang genug, um aus dem
          * Nebenraum zu holen, kurz genug, um nicht zu nerven.
          */
@@ -601,12 +614,33 @@ class WakeWordService : Service() {
             // Kurz warten, damit der Dienststart nicht mit einem Netzaufruf
             // konkurriert (Modelle laden zuerst).
             try { Thread.sleep(10_000) } catch (_: InterruptedException) { return@thread }
+            var letzteZonenpruefung = 0L
             while (aktiv) {
                 try {
                     val neue = Postfach.abholen(applicationContext, client, System.currentTimeMillis())
                     neue.forEach { melde(it) }
                 } catch (t: Throwable) {
                     // Ein Netzfehler darf das Lauschen niemals stoeren.
+                }
+                // ORTSZONEN (v0.45): haengt bewusst an DIESEM Thread - der
+                // laeuft ohnehin, darf blockieren und hat schon einen Takt.
+                // Ein eigener Dienst waere ein zweiter Wake Lock fuer
+                // dieselbe Arbeit.
+                try {
+                    val jetzt = System.currentTimeMillis()
+                    if (jetzt - letzteZonenpruefung >= GEOFENCE_INTERVALL_MS) {
+                        letzteZonenpruefung = jetzt
+                        val ereignisse = Geofence.pruefen(applicationContext, client)
+                        for (e in ereignisse) {
+                            // ueberschreibeFehler = false: Eine FEHLER-Meldung
+                            // muss stehen bleiben, bis sie gelesen ist.
+                            meldeStatus("Zone " + e.zone + " " + e.ereignis +
+                                        " (" + e.entfernung.toInt() + " m)", false)
+                        }
+                    }
+                } catch (t: Throwable) {
+                    // Wie oben: Das Lauschen ist die Hauptaufgabe und darf an
+                    // einer Zusatzfunktion nicht scheitern.
                 }
                 try { Thread.sleep(NACHSEHEN_INTERVALL_MS) } catch (_: InterruptedException) { return@thread }
             }

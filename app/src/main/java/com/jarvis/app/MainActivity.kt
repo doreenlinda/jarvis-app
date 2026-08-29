@@ -242,6 +242,11 @@ class MainActivity : AppCompatActivity() {
         // Zwei Schalter muessen an sein: die Android-Berechtigung UND dieser
         // hier. Tippt sie ihn an, ohne dass die Berechtigung vorliegt, wird
         // sie danach gefragt; lehnt sie ab, bleibt der Haken einfach aus.
+        findViewById<android.widget.Button>(R.id.zoneSetzenButton)?.let { b ->
+            b.graphit()
+            b.setOnClickListener { zoneSetzen() }
+        }
+
         val standortSchalter = findViewById<android.widget.CheckBox>(R.id.standortSchalter)
         standortSchalter.isChecked = Standort.eingeschaltet(this) && Standort.erlaubt(this)
         standortSchalter.setOnClickListener {
@@ -407,8 +412,70 @@ class MainActivity : AppCompatActivity() {
         knopf.text = "Einstellungen einblenden (" + teile + ")"
     }
 
+    /**
+     * v0.45: Die Zone "Zuhause" wird gesetzt, indem sie DORT STEHT.
+     *
+     * Kein Kartendienst, keine Adresse - die Position kommt vom Geraet und
+     * bleibt darauf. Gemessen wird synchron in einem Hintergrund-Thread
+     * (bis zu 20 Sekunden), deshalb die Zwischenmeldung: Ohne sie sieht ein
+     * laufender Fix nach einem toten Knopf aus.
+     */
+    private fun zoneSetzen() {
+        val feld = findViewById<TextView>(R.id.zoneInfo)
+        if (!Standort.erlaubt(this) || !Standort.eingeschaltet(this)) {
+            feld?.text = "Zone: erst den Standort einschalten."
+            return
+        }
+        feld?.text = "Zone: Position wird gemessen …"
+        val app = applicationContext
+        Thread {
+            val pos = try { Standort.positionJetzt(app) } catch (_: Throwable) { null }
+            runOnUiThread {
+                if (pos == null) {
+                    feld?.text = "Zone: keine Position bekommen – draussen noch einmal versuchen."
+                    return@runOnUiThread
+                }
+                val genau = if (pos.hasAccuracy()) pos.accuracy else -1f
+                // Ist der Fix ungenauer als der Radius, saesse die Zone
+                // irgendwo - und jede spaetere Entscheidung waere geraten.
+                if (genau > Geofence.RADIUS_STANDARD_M) {
+                    feld?.text = "Zone: Ortung zu ungenau (" + genau.toInt() +
+                                 " m) – bitte draussen erneut versuchen."
+                    return@runOnUiThread
+                }
+                Geofence.setzeZone(app, "Zuhause", pos)
+                zeigeZonen()
+            }
+        }.start()
+    }
+
+    /**
+     * Zeigt, welche Zonen es gibt und wo Jarvis sie gerade sieht.
+     *
+     * Ohne diese Anzeige waere im Alltag nicht pruefbar, ob die Zonen
+     * ueberhaupt etwas tun - dieselbe Ueberlegung wie bei der Standort- und
+     * der WhatsApp-Zeile. Auf dem Handy gibt es kein lesbares Log.
+     */
+    private fun zeigeZonen() {
+        val feld = findViewById<TextView>(R.id.zoneInfo) ?: return
+        val liste = Geofence.zonen(this)
+        feld.text = if (liste.isEmpty()) {
+            "Zone: noch keine – in der Wohnung auf „Hier ist Zuhause“ tippen."
+        } else {
+            liste.joinToString("; ") { z ->
+                val wo = when (Geofence.zustand(this, z.name)) {
+                    "drin" -> "hier"
+                    "draussen" -> "nicht hier"
+                    else -> "noch unbestimmt"
+                }
+                z.name + " (" + z.radius + " m, " + wo + ")"
+            }
+        }
+    }
+
     private fun zeigeStandort() {
         aktualisiereEinstellungsUebersicht()
+        zeigeZonen()
         val feld = findViewById<TextView>(R.id.standortInfo) ?: return
         val schalter = findViewById<android.widget.CheckBox>(R.id.standortSchalter)
         schalter?.isChecked = Standort.eingeschaltet(this) && Standort.erlaubt(this)

@@ -308,6 +308,34 @@
                 android:textStyle="italic"
                 android:textColor="@color/status_schrift"
                 android:text="" />
+
+            <!-- v0.45, ORTSZONEN (Etappe 1 - die Messung): Die Zone wird
+                 gesetzt, indem sie DORT STEHT und tippt. Kein Kartendienst,
+                 keine Adresse, die erst in Koordinaten uebersetzt werden
+                 muesste - und die Zone sitzt genau dort, wo sie wirklich
+                 ist, nicht dort, wo ein Geocoder die Hausnummer vermutet.
+                 Die Koordinaten bleiben auf dem Geraet; an den Server geht
+                 nur der Zonenname und die Richtung. -->
+            <Button
+                android:id="@+id/zoneSetzenButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:textAllCaps="false"
+                android:stateListAnimator="@null"
+                android:background="@drawable/taste_graphit"
+                android:textColor="@color/tasten_schrift"
+                android:text="Hier ist Zuhause" />
+
+            <TextView
+                android:id="@+id/zoneInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="2dp"
+                android:textSize="13sp"
+                android:textStyle="italic"
+                android:textColor="@color/status_schrift"
+                android:text="" />
         </LinearLayout>
 
 

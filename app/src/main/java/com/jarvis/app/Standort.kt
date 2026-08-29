@@ -57,6 +57,19 @@ object Standort {
     /** Adresstext des letzten Fixes und dessen Zeitpunkt. */
     private const val FELD_TEXT = "standort_text"
     private const val FELD_ZEIT = "standort_zeit"
+
+    /**
+     * Seit v0.45 wird zusaetzlich die POSITION gemerkt - fuer die Ortszonen
+     * (Geofence.kt), die einen Abstand ausrechnen muessen und dafuer mit
+     * einem Adresstext nichts anfangen koennen.
+     *
+     * KEIN BRUCH MIT v0.31: Die Zusage von damals lautet, dass keine
+     * Koordinaten an den SERVER gehen - und dabei bleibt es. Diese Werte
+     * bleiben auf dem Geraet, so wie das Betriebssystem sie ohnehin kennt.
+     */
+    private const val FELD_LAT = "standort_lat"
+    private const val FELD_LON = "standort_lon"
+    private const val FELD_GENAU = "standort_genauigkeit"
     /** Der Schalter in der App (siehe oben, Punkt 2). */
     const val FELD_AN = "standort_an"
 
@@ -104,7 +117,8 @@ object Standort {
             // Beim Ausschalten den gespeicherten Ort mitentfernen - sonst
             // laege er noch bis zu zehn Minuten auf dem Geraet, obwohl sie
             // die Ortung gerade abgestellt hat.
-            prefs(ctx).edit().remove(FELD_TEXT).remove(FELD_ZEIT).apply()
+            prefs(ctx).edit().remove(FELD_TEXT).remove(FELD_ZEIT)
+                .remove(FELD_LAT).remove(FELD_LON).remove(FELD_GENAU).apply()
         }
     }
 
@@ -149,6 +163,53 @@ object Standort {
             } finally {
                 laeuft = false
             }
+        }
+    }
+
+
+    /**
+     * Die zuletzt gemessene Position - oder null. Fuer die Ortszonen.
+     *
+     * Anders als [text] gibt es hier KEINE Haltbarkeitsgrenze: Ein Abstand
+     * bleibt auch dann eine brauchbare Auskunft, wenn der Fix ein paar
+     * Minuten alt ist, und die Zonenpruefung entscheidet selbst, was ihr
+     * frisch genug ist. Zurueckgegeben wird deshalb auch der Zeitpunkt.
+     *
+     * Als Location-Objekt, damit distanceTo() zur Verfuegung steht - das
+     * rechnet auf der Erdkugel und nicht auf einer flachen Karte. Eine
+     * selbstgebaute Formel waere hier die schlechtere Wahl.
+     */
+    fun letztePosition(ctx: Context): Location? {
+        if (!erlaubt(ctx) || !eingeschaltet(ctx)) return null
+        val p = prefs(ctx)
+        val lat = p.getString(FELD_LAT, null)?.toDoubleOrNull() ?: return null
+        val lon = p.getString(FELD_LON, null)?.toDoubleOrNull() ?: return null
+        val zeit = p.getLong(FELD_ZEIT, 0L)
+        if (zeit <= 0L) return null
+        return Location("jarvis").apply {
+            latitude = lat
+            longitude = lon
+            time = zeit
+            val g = p.getFloat(FELD_GENAU, -1f)
+            if (g >= 0f) accuracy = g
+        }
+    }
+
+    /**
+     * Misst SYNCHRON und gibt die frische Position zurueck. Nur fuer
+     * Hintergrund-Threads - blockiert bis zu [FIX_TIMEOUT_S] Sekunden.
+     *
+     * Die Zonenpruefung laeuft im ohnehin vorhandenen Minuten-Takt des
+     * Weckwort-Dienstes und darf deshalb warten. Fuer das Gespraech gilt
+     * weiter [anstossen] - dort darf nichts blockieren.
+     */
+    fun positionJetzt(ctx: Context): Location? {
+        if (!erlaubt(ctx) || !eingeschaltet(ctx)) return null
+        return try {
+            messen(ctx.applicationContext)
+            letztePosition(ctx)
+        } catch (_: Throwable) {
+            letztePosition(ctx)
         }
     }
 
@@ -244,6 +305,9 @@ object Standort {
         prefs(ctx).edit()
             .putString(FELD_TEXT, adresse)
             .putLong(FELD_ZEIT, zeit)
+            .putString(FELD_LAT, loc.latitude.toString())
+            .putString(FELD_LON, loc.longitude.toString())
+            .putFloat(FELD_GENAU, if (loc.hasAccuracy()) loc.accuracy else -1f)
             .apply()
     }
 
