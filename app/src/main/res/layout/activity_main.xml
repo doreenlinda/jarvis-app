@@ -324,7 +324,7 @@
                 android:textAllCaps="false"
                 android:stateListAnimator="@null"
                 android:background="@drawable/taste_graphit"
-                android:textColor="@color/tasten_schrift"
+                android:textColor="@color/taste_schrift"
                 android:text="Hier ist Zuhause" />
 
             <TextView
