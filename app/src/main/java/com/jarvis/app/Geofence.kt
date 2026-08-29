@@ -218,7 +218,7 @@ object Geofence {
         if (genauigkeit > GENAUIGKEIT_GRENZE_M) return null
 
         val drin = abstand <= radius
-        val draussen = abstand > radius + PUFFER_M
+        val draussen = abstand > radius
 
         // Im Puffer-Ring wird NICHTS entschieden - dort bleibt es beim
         // bisherigen Zustand. Das ist der Kern der Hysterese.
