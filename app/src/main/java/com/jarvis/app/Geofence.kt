@@ -389,13 +389,17 @@ object Geofence {
         val gemeldet = mutableListOf<Ergebnis>()
         for (zone in liste) {
             val e = bewerte(zone, position, zustand(ctx, zone.name)) ?: continue
-            // NICHT aus dem Ereignistext ableiten - siehe lage(). Der
-            // Zustand kommt fertig aus bewerte().
             // ZUSTAND ZUERST: Faellt der Netzaufruf aus, ist die Meldung
             // verloren - aber sie wird nicht bei jedem Takt erneut versucht
             // und fuellt am Ende das Postfach. Eine verpasste Meldung ist
             // hier das kleinere Uebel.
-            setzeZustand(ctx, zone.name, e.zustand)
+            //
+            // UND ER WIRD NICHT AUS DEM EREIGNISTEXT ABGELEITET (v0.47):
+            // Beim ersten Fix ist der leer, war also nicht "verlassen" und
+            // wurde als "drin" gespeichert - fuer Zonen, die kilometerweit
+            // entfernt lagen. Er kommt jetzt fertig aus bewerte().
+            val neuerZustand = if (e.ereignis == "verlassen") "draussen" else "drin"
+            setzeZustand(ctx, zone.name, neuerZustand)
             if (e.ereignis.isEmpty()) continue   // erster Fix: nur festlegen
             if (melde(ctx, client, e)) gemeldet += e
         }
