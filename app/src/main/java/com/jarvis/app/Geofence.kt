@@ -323,7 +323,8 @@ object Geofence {
         // Grenze von 150 m wuerde dort einen Fix akzeptieren, der ungenauer
         // ist als die Zone gross - und die Entscheidung waere ein Muenzwurf.
         // Der kleinere der beiden Werte gilt.
-        if (genauigkeit > GENAUIGKEIT_GRENZE_M) return null   // SABOTAGE 2
+        val grenze = minOf(GENAUIGKEIT_GRENZE_M, radius.toFloat())
+        if (genauigkeit > grenze) return null
 
         val drin = abstand <= radius
         val draussen = abstand > radius + PUFFER_M
