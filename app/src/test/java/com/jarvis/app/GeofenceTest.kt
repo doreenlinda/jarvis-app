@@ -88,6 +88,85 @@ class GeofenceTest {
         assertNull(Geofence.entscheide(10f, zuUngenau, R, "draussen"))
     }
 
+    // ------------------------------------------------ Zonen zusammenfuehren
+
+    @Test
+    fun dieEigeneZoneGewinntGegenDieVomServer() {
+        // WARUM SO HERUM: Eine Zone, bei der Doreen WIRKLICH stand, sitzt
+        // genauer als jeder Geocoder. Ihr getipptes "Zuhause" darf nicht
+        // von der serverseitig geocodierten Fassung verdraengt werden.
+        val eigene = listOf(Geofence.Zone("Zuhause", 52.41, 13.42, 200))
+        val server = listOf(Geofence.Zone("Zuhause", 52.99, 13.99, 200),
+                            Geofence.Zone("Ruth", 52.44, 13.32, 100))
+        val alle = Geofence.zusammenfuehren(eigene, server)
+        assertEquals(2, alle.size)
+        assertEquals(52.41, alle.first { it.name == "Zuhause" }.lat, 0.0001)
+    }
+
+    @Test
+    fun grossKleinUndLeerzeichenErzeugenKeineDoppelte() {
+        // Sonst gaebe es zwei Zonen am selben Ort, und jedes Ereignis
+        // wuerde doppelt gemessen - in einer Reihe, aus der Fahrzeiten
+        // werden sollen.
+        val eigene = listOf(Geofence.Zone(" zuhause ", 52.41, 13.42, 200))
+        val server = listOf(Geofence.Zone("Zuhause", 52.99, 13.99, 200))
+        assertEquals(1, Geofence.zusammenfuehren(eigene, server).size)
+    }
+
+    @Test
+    fun ohneEigeneKommenAlleVomServer() {
+        val server = listOf(Geofence.Zone("Ruth", 52.44, 13.32, 100),
+                            Geofence.Zone("Anja", 52.47, 13.43, 100))
+        assertEquals(2, Geofence.zusammenfuehren(emptyList(), server).size)
+    }
+
+    // ------------------------------------------------------ Liste lesen
+
+    @Test
+    fun eineKaputteListeErgibtKeineZonen() {
+        // Sie darf den Dienst nicht mitreissen - dann gibt es eben keine
+        // Zonen, und das Lauschen laeuft weiter.
+        assertEquals(0, Geofence.ausJson("{kein json").size)
+        assertEquals(0, Geofence.ausJson("").size)
+    }
+
+    @Test
+    fun einEintragOhneNamenWirdUebersprungen() {
+        // Er waere spaeter nicht zuzuordnen - eine namenlose Zone kann
+        // nichts melden.
+        val roh = """[{"name":"Ruth","lat":52.4,"lon":13.3,"radius":100},""" +
+                  """{"lat":52.5,"lon":13.4,"radius":100}]"""
+        val liste = Geofence.ausJson(roh)
+        assertEquals(1, liste.size)
+        assertEquals("Ruth", liste[0].name)
+    }
+
+    @Test
+    fun fehlenderRadiusFaelltAufDenStandardZurueck() {
+        val liste = Geofence.ausJson("""[{"name":"Ruth","lat":52.4,"lon":13.3}]""")
+        assertEquals(Geofence.RADIUS_STANDARD_M, liste[0].radius)
+    }
+
+    @Test
+    fun beiKleinerZoneGiltDerRadiusAlsGrenze() {
+        // NEU in v0.46: Seit es Zonen mit 100 m Radius gibt (Kundenadressen
+        // liegen dicht beieinander - Sylvia und Dr. Ehle nur 253 m), waere
+        // die feste Grenze von 150 m sinnlos: Der Fix waere ungenauer als
+        // die Zone gross, und die Entscheidung ein Muenzwurf.
+        val klein = 100
+        assertNull(Geofence.entscheide(900f, 120f, klein, "drin"))
+        // Genau am Radius zaehlt es noch.
+        assertEquals("verlassen",
+            Geofence.entscheide(900f, klein.toFloat(), klein, "drin"))
+    }
+
+    @Test
+    fun beiGrosserZoneBleibtDieFesteGrenze() {
+        // Gegenprobe: Bei 200 m Radius darf die Grenze NICHT auf 200
+        // steigen - ein Fix mit 180 m Ungenauigkeit sagt nichts aus.
+        assertNull(Geofence.entscheide(900f, 180f, 200, "drin"))
+    }
+
     @Test
     fun genauAnDerGrenzeZaehltNoch() {
         assertEquals("verlassen",

@@ -459,17 +459,19 @@ class MainActivity : AppCompatActivity() {
     private fun zeigeZonen() {
         val feld = findViewById<TextView>(R.id.zoneInfo) ?: return
         val liste = Geofence.zonen(this)
+        // NICHT MEHR ALLE AUFZAEHLEN: Seit dem 30.08.2026 sind es 22 statt
+        // einer - eine Zeile mit 22 Namen ist unlesbar. Interessant ist,
+        // wie viele es gibt und wo Jarvis sie gerade sieht.
+        val hier = liste.filter { Geofence.zustand(this, it.name) == "drin" }
         feld.text = if (liste.isEmpty()) {
             "Zone: noch keine – in der Wohnung auf „Hier ist Zuhause“ tippen."
         } else {
-            liste.joinToString("; ") { z ->
-                val wo = when (Geofence.zustand(this, z.name)) {
-                    "drin" -> "hier"
-                    "draussen" -> "nicht hier"
-                    else -> "noch unbestimmt"
-                }
-                z.name + " (" + z.radius + " m, " + wo + ")"
+            val vomServer = Geofence.serverZonen(this).size
+            val wo = when {
+                hier.isEmpty() -> "gerade in keiner"
+                else -> "gerade in: " + hier.joinToString(", ") { it.name }
             }
+            "Zonen: " + liste.size + " (" + vomServer + " vom Server) – " + wo
         }
     }
 

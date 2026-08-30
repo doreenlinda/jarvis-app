@@ -46,6 +46,8 @@ object Geofence {
 
     private const val PREFS = "jarvis"
     private const val FELD_ZONEN = "geofence_zonen"
+    private const val FELD_SERVER_ZONEN = "geofence_zonen_server"
+    private const val FELD_SERVER_STAND = "geofence_zonen_geholt"
     private const val FELD_ZUSTAND = "geofence_zustand"
 
     /** Standardradius einer neuen Zone. */
@@ -84,8 +86,56 @@ object Geofence {
 
     // ------------------------------------------------------------- Zonen
 
-    fun zonen(ctx: Context): List<Zone> {
-        val roh = prefs(ctx).getString(FELD_ZONEN, "") ?: ""
+    /**
+     * Alle Zonen - die vom Server UND die hier selbst gesetzten.
+     *
+     * DIE LOKALE GEWINNT bei gleichem Namen, und das ist Absicht: Eine Zone,
+     * bei der Doreen WIRKLICH stand, sitzt genauer als jeder Geocoder. Ihr
+     * getipptes "Zuhause" bleibt damit erhalten, obwohl der Server seit dem
+     * 30.08.2026 ein gleichnamiges kennt, und fuer Karl (dessen Adresse in
+     * ihrer Liste fehlt) kann sie beim naechsten Besuch weiterhin vor Ort
+     * tippen.
+     */
+    fun zonen(ctx: Context): List<Zone> =
+        zusammenfuehren(lokaleZonen(ctx), serverZonen(ctx))
+
+    /**
+     * Fuehrt die eigenen und die Server-Zonen zusammen - REINE Funktion.
+     *
+     * Bewusst ohne Context, damit der Cloud-Build sie prueft. Der Fehler
+     * waere sonst teuer und stumm: Ein Name, der doppelt durchkommt, ergibt
+     * zwei Zonen am selben Ort, und Doreen bekaeme jedes Ereignis doppelt
+     * gemessen - in einer Messreihe, aus der spaeter Fahrzeiten werden
+     * sollen.
+     */
+    fun zusammenfuehren(eigene: List<Zone>, vomServer: List<Zone>): List<Zone> {
+        val namen = eigene.map { it.name.trim().lowercase() }.toSet()
+        return eigene + vomServer.filter {
+            it.name.trim().lowercase() !in namen
+        }
+    }
+
+    /** Nur die hier auf dem Geraet gesetzten. */
+    fun lokaleZonen(ctx: Context): List<Zone> = lies(ctx, FELD_ZONEN)
+
+    /** Nur die vom Server geholten. */
+    fun serverZonen(ctx: Context): List<Zone> = lies(ctx, FELD_SERVER_ZONEN)
+
+    /** Wann zuletzt erfolgreich geholt wurde (0 = noch nie). */
+    fun serverStand(ctx: Context): Long =
+        prefs(ctx).getLong(FELD_SERVER_STAND, 0L)
+
+    private fun lies(ctx: Context, feld: String): List<Zone> =
+        ausJson(prefs(ctx).getString(feld, "") ?: "")
+
+    /**
+     * Liest eine gespeicherte Zonenliste - REINE Funktion, damit pruefbar.
+     *
+     * Eine kaputte Liste darf den Dienst nicht mitreissen: Dann gibt es
+     * eben keine Zonen, und alles andere laeuft weiter. Ein Eintrag ohne
+     * Namen wird uebersprungen - er waere spaeter nicht zuzuordnen.
+     */
+    fun ausJson(roh: String): List<Zone> {
         if (roh.isBlank()) return emptyList()
         return try {
             val arr = JSONArray(roh)
@@ -97,8 +147,6 @@ object Geofence {
                      o.optInt("radius", RADIUS_STANDARD_M))
             }
         } catch (_: Throwable) {
-            // Eine kaputte Liste darf den Dienst nicht mitreissen - dann gibt
-            // es eben keine Zonen, und alles andere laeuft weiter.
             emptyList()
         }
     }
@@ -116,7 +164,8 @@ object Geofence {
                   radius: Int = RADIUS_STANDARD_M) {
         val sauber = name.trim()
         if (sauber.isEmpty()) return
-        val rest = zonen(ctx).filter { !it.name.equals(sauber, ignoreCase = true) }
+        // Nur die lokale Liste - aus demselben Grund wie bei entferneZone.
+        val rest = lokaleZonen(ctx).filter { !it.name.equals(sauber, ignoreCase = true) }
         val arr = JSONArray()
         for (z in rest + Zone(sauber, loc.latitude, loc.longitude, radius)) {
             arr.put(JSONObject().apply {
@@ -133,9 +182,61 @@ object Geofence {
         setzeZustand(ctx, sauber, null)
     }
 
+    /**
+     * Holt die Zonenliste vom Server.
+     *
+     * WARUM DER SERVER SIE HAELT: Eine Zone entstand bis v0.45 nur, indem
+     * Doreen dort steht und tippt. Fuer 24 Kunden- und Arztadressen ist das
+     * nichts - also legt der Server sie aus den Adressen an, und das Handy
+     * holt sie ab. Es geht NUR IN DIESE RICHTUNG; eine Position wird
+     * weiterhin nie hochgeladen.
+     *
+     * BEI EINEM FEHLER BLEIBT DIE ALTE LISTE STEHEN, und das ist die
+     * wichtigste Zeile hier: Ohne Netz, mit schlafendem Laptop oder bei
+     * einem Serverfehler wuerde ein naiver "leer = keine Zonen mehr" alle
+     * Zonen loeschen - und Doreen wuerde tagelang nichts messen, ohne dass
+     * es jemandem auffaellt. Lieber eine veraltete Liste als gar keine.
+     *
+     * Gibt zurueck, wie viele Zonen jetzt vom Server bekannt sind, oder -1
+     * bei einem Fehler.
+     */
+    fun holeVomServer(ctx: Context, client: OkHttpClient): Int {
+        val p = prefs(ctx)
+        val basis = (p.getString("url", "") ?: "").trim().trimEnd('/')
+        val key = p.getString("key", "") ?: ""
+        if (basis.isEmpty() || key.isEmpty()) return -1
+
+        val anfrage = Request.Builder()
+            .url("$basis/zonen?key=" + java.net.URLEncoder.encode(key, "UTF-8"))
+            .addHeader("ngrok-skip-browser-warning", "true")
+            .get()
+            .build()
+        return try {
+            client.newCall(anfrage).execute().use { antwort ->
+                if (!antwort.isSuccessful) return -1
+                val koerper = antwort.body?.string() ?: return -1
+                val arr = JSONObject(koerper).optJSONArray("zonen") ?: return -1
+                // Eine leere Antwort wird NICHT uebernommen: Sie ist
+                // ununterscheidbar von einem halb ausgefallenen Server, und
+                // der Preis eines Irrtums waere der Verlust aller Zonen.
+                if (arr.length() == 0) return 0
+                p.edit()
+                    .putString(FELD_SERVER_ZONEN, arr.toString())
+                    .putLong(FELD_SERVER_STAND, System.currentTimeMillis())
+                    .apply()
+                arr.length()
+            }
+        } catch (_: Throwable) {
+            -1
+        }
+    }
+
     fun entferneZone(ctx: Context, name: String) {
+        // NUR die lokale Liste - sonst wuerden beim Loeschen einer einzigen
+        // Zone alle Server-Zonen in die lokale Liste kopiert und waeren
+        // danach nicht mehr aktualisierbar.
         val arr = JSONArray()
-        for (z in zonen(ctx).filter { !it.name.equals(name.trim(), ignoreCase = true) }) {
+        for (z in lokaleZonen(ctx).filter { !it.name.equals(name.trim(), ignoreCase = true) }) {
             arr.put(JSONObject().apply {
                 put("name", z.name); put("lat", z.lat)
                 put("lon", z.lon); put("radius", z.radius)
@@ -215,7 +316,15 @@ object Geofence {
         // Daraus ein "verlassen" abzuleiten waere schlimmer als zu
         // schweigen: Sie bekaeme eine Meldung ueber etwas, das nicht
         // stattgefunden hat.
-        if (genauigkeit > GENAUIGKEIT_GRENZE_M) return null
+        //
+        // DIE GRENZE HAENGT AM RADIUS (v0.46): Seit dem 30.08.2026 gibt es
+        // Zonen mit 100 m statt 200 - Kundenadressen liegen dichter
+        // beieinander, Sylvia und Dr. Ehle nur 253 m auseinander. Eine feste
+        // Grenze von 150 m wuerde dort einen Fix akzeptieren, der ungenauer
+        // ist als die Zone gross - und die Entscheidung waere ein Muenzwurf.
+        // Der kleinere der beiden Werte gilt.
+        val grenze = minOf(GENAUIGKEIT_GRENZE_M, radius.toFloat())
+        if (genauigkeit > grenze) return null
 
         val drin = abstand <= radius
         val draussen = abstand > radius + PUFFER_M

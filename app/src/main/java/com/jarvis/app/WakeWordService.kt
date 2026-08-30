@@ -180,6 +180,15 @@ class WakeWordService : Service() {
          */
         private const val GEOFENCE_INTERVALL_MS = 120_000L
 
+        // Wie oft die Zonenliste vom Server geholt wird (v0.46).
+        //
+        // WOHER DIE STUNDE: Zonen aendern sich selten - eine neue Kundin
+        // kommt vielleicht einmal im Monat dazu. Haeufiger zu fragen kostet
+        // Akku fuer nichts; seltener hiesse, dass eine frisch angelegte Zone
+        // einen halben Tag lang nicht greift. Beim Dienststart wird
+        // unabhaengig davon sofort geholt (letzterZonenAbruf = 0).
+        private const val ZONEN_ABRUF_INTERVALL_MS = 3_600_000L
+
         /**
          * Laenge des Wecktons vor der Ansage. Lang genug, um aus dem
          * Nebenraum zu holen, kurz genug, um nicht zu nerven.
@@ -615,6 +624,7 @@ class WakeWordService : Service() {
             // konkurriert (Modelle laden zuerst).
             try { Thread.sleep(10_000) } catch (_: InterruptedException) { return@thread }
             var letzteZonenpruefung = 0L
+            var letzterZonenAbruf = 0L
             while (aktiv) {
                 try {
                     val neue = Postfach.abholen(applicationContext, client, System.currentTimeMillis())
@@ -628,6 +638,13 @@ class WakeWordService : Service() {
                 // dieselbe Arbeit.
                 try {
                     val jetzt = System.currentTimeMillis()
+                    // Zuerst die Liste auffrischen - eine neue Zone soll
+                    // beim naechsten Takt schon gelten, nicht erst beim
+                    // uebernaechsten.
+                    if (jetzt - letzterZonenAbruf >= ZONEN_ABRUF_INTERVALL_MS) {
+                        letzterZonenAbruf = jetzt
+                        Geofence.holeVomServer(applicationContext, client)
+                    }
                     if (jetzt - letzteZonenpruefung >= GEOFENCE_INTERVALL_MS) {
                         letzteZonenpruefung = jetzt
                         val ereignisse = Geofence.pruefen(applicationContext, client)
