@@ -109,7 +109,10 @@ object Geofence {
      * sollen.
      */
     fun zusammenfuehren(eigene: List<Zone>, vomServer: List<Zone>): List<Zone> {
-        return vomServer + eigene   // SABOTAGE
+        val namen = eigene.map { it.name.trim().lowercase() }.toSet()
+        return eigene + vomServer.filter {
+            it.name.trim().lowercase() !in namen
+        }
     }
 
     /** Nur die hier auf dem Geraet gesetzten. */
@@ -320,8 +323,7 @@ object Geofence {
         // Grenze von 150 m wuerde dort einen Fix akzeptieren, der ungenauer
         // ist als die Zone gross - und die Entscheidung waere ein Muenzwurf.
         // Der kleinere der beiden Werte gilt.
-        val grenze = minOf(GENAUIGKEIT_GRENZE_M, radius.toFloat())
-        if (genauigkeit > grenze) return null
+        if (genauigkeit > GENAUIGKEIT_GRENZE_M) return null   // SABOTAGE 2
 
         val drin = abstand <= radius
         val draussen = abstand > radius + PUFFER_M
