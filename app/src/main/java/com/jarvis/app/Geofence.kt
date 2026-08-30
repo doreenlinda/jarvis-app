@@ -349,7 +349,7 @@ object Geofence {
         // bisherigen Zustand. Das ist der Kern der Hysterese.
         return when {
             abstand <= radius -> "drin"
-            abstand > radius + PUFFER_M -> "drin"   // SABOTAGE 2
+            abstand > radius + PUFFER_M -> "draussen"
             else -> null
         }
     }
