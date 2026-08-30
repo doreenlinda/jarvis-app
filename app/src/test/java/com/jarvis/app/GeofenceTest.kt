@@ -269,7 +269,11 @@ class GeofenceTest {
         val q = dienst()
         val i = q.indexOf("Geofence.pruefen(")
         assertTrue("Aufruf nicht gefunden", i > 0)
-        val davor = q.substring(maxOf(0, i - 400), i)
+        // FENSTER 900 statt 400: Seit v0.46 steht der Zonen-Abruf
+        // zwischen dem try und dem Aufruf. Die Anforderung ist
+        // unveraendert - der Aufruf muss im try-Block liegen -, nur
+        // der Abstand ist groesser geworden.
+        val davor = q.substring(maxOf(0, i - 900), i)
         assertTrue("Der Aufruf steht nicht in einem try-Block",
             davor.contains("try {"))
     }

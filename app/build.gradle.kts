@@ -84,6 +84,12 @@ dependencies {
     // Test prueft gegen ein Chiffrat aus crypto_utils.py, dass beide Seiten
     // dasselbe Format sprechen - BEVOR eine APK entsteht.
     testImplementation("junit:junit:4.13.2")
+    // ECHTES org.json fuer die Unit-Tests: Im Android-Framework ist
+    // JSONObject nur ein Stub, der zur Laufzeit wirft ("Stub!"). Ohne
+    // diese Zeile liessen sich die Zonen-Listen nicht pruefen -
+    // dieselbe Falle wie Location.distanceTo, das deshalb gar nicht
+    // erst in einer testbaren Funktion steht. Nur im Test, nie in der App.
+    testImplementation("org.json:json:20240303")
 }
 
 
