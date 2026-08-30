@@ -109,10 +109,7 @@ object Geofence {
      * sollen.
      */
     fun zusammenfuehren(eigene: List<Zone>, vomServer: List<Zone>): List<Zone> {
-        val namen = eigene.map { it.name.trim().lowercase() }.toSet()
-        return eigene + vomServer.filter {
-            it.name.trim().lowercase() !in namen
-        }
+        return vomServer + eigene   // SABOTAGE
     }
 
     /** Nur die hier auf dem Geraet gesetzten. */
