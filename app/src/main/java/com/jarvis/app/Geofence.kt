@@ -349,7 +349,7 @@ object Geofence {
         // bisherigen Zustand. Das ist der Kern der Hysterese.
         return when {
             abstand <= radius -> "drin"
-            abstand > radius + PUFFER_M -> "draussen"
+            abstand > radius + PUFFER_M -> "drin"   // SABOTAGE 2
             else -> null
         }
     }
@@ -398,8 +398,7 @@ object Geofence {
             // Beim ersten Fix ist der leer, war also nicht "verlassen" und
             // wurde als "drin" gespeichert - fuer Zonen, die kilometerweit
             // entfernt lagen. Er kommt jetzt fertig aus bewerte().
-            val neuerZustand = if (e.ereignis == "verlassen") "draussen" else "drin"
-            setzeZustand(ctx, zone.name, neuerZustand)
+            setzeZustand(ctx, zone.name, e.zustand)
             if (e.ereignis.isEmpty()) continue   // erster Fix: nur festlegen
             if (melde(ctx, client, e)) gemeldet += e
         }
