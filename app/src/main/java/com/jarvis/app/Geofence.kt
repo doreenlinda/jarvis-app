@@ -273,7 +273,8 @@ object Geofence {
 
     /** Was bei einer Pruefung herauskam - fuer den Test und die Statuszeile. */
     data class Ergebnis(val zone: String, val ereignis: String,
-                        val entfernung: Float, val genauigkeit: Float)
+                        val entfernung: Float, val genauigkeit: Float,
+                        val zustand: String)
 
     /**
      * Entscheidet fuer EINE Zone, ob sich etwas geaendert hat.
@@ -294,7 +295,13 @@ object Geofence {
         val abstand = position.distanceTo(ziel)
         val ereignis = entscheide(abstand, genau, zone.radius, vorher)
             ?: return null
-        return Ergebnis(zone.name, ereignis, abstand, genau)
+        // Der Zustand wird MITGELIEFERT, nicht aus dem Ereignistext
+        // erraten. Genau daran ist v0.46 gescheitert: Der erste Fix
+        // liefert einen LEEREN Ereignistext, und der ist nun einmal
+        // nicht "verlassen" - er landete im else-Zweig als "drin",
+        // obwohl sie kilometerweit entfernt war.
+        val lageJetzt = lage(abstand, genau, zone.radius) ?: return null
+        return Ergebnis(zone.name, ereignis, abstand, genau, lageJetzt)
     }
 
     /**
@@ -310,8 +317,20 @@ object Geofence {
      * Rueckgabe: "betreten", "verlassen", "" (erster Fix - nur festlegen,
      * nichts melden) oder null (keine Aenderung / nicht entscheidbar).
      */
-    fun entscheide(abstand: Float, genauigkeit: Float, radius: Int,
-                   vorher: String?): String? {
+    /**
+     * Wo ist sie gerade - "drin", "draussen" oder unentschieden?
+     *
+     * DIE EINZIGE STELLE, an der das entschieden wird. Vor v0.47 stand
+     * die Vorschrift nur in entscheide(), und der Aufrufer musste sich
+     * den Zustand aus dem Ereignistext zusammenreimen - was beim ersten
+     * Fix zwangslaeufig schiefging. Zwei Kopien einer Rechenvorschrift
+     * laufen frueher oder spaeter auseinander; hier ist es eine.
+     *
+     * null heisst: Es laesst sich nichts sagen - entweder ist der Fix
+     * ungenauer als die Zone gross, oder sie steht im Puffer-Ring. In
+     * beiden Faellen bleibt der bisherige Zustand stehen.
+     */
+    fun lage(abstand: Float, genauigkeit: Float, radius: Int): String? {
         // Ein Fix, der ungenauer ist als die Zone gross, sagt nichts aus.
         // Daraus ein "verlassen" abzuleiten waere schlimmer als zu
         // schweigen: Sie bekaeme eine Meldung ueber etwas, das nicht
@@ -326,16 +345,20 @@ object Geofence {
         val grenze = minOf(GENAUIGKEIT_GRENZE_M, radius.toFloat())
         if (genauigkeit > grenze) return null
 
-        val drin = abstand <= radius
-        val draussen = abstand > radius + PUFFER_M
-
         // Im Puffer-Ring wird NICHTS entschieden - dort bleibt es beim
         // bisherigen Zustand. Das ist der Kern der Hysterese.
-        val neu = when {
-            drin -> "drin"
-            draussen -> "draussen"
-            else -> return null
+        return when {
+            abstand <= radius -> "drin"
+            abstand > radius + PUFFER_M -> "draussen"
+            else -> null
         }
+    }
+
+    fun entscheide(abstand: Float, genauigkeit: Float, radius: Int,
+                   vorher: String?): String? {
+        // WO sie ist, entscheidet lage() - hier geht es nur darum, ob
+        // sich seit dem letzten Takt etwas GEAENDERT hat.
+        val neu = lage(abstand, genauigkeit, radius) ?: return null
         if (neu == vorher) return null
 
         // Der allererste Fix legt den Zustand nur FEST, ohne zu melden.
@@ -366,12 +389,13 @@ object Geofence {
         val gemeldet = mutableListOf<Ergebnis>()
         for (zone in liste) {
             val e = bewerte(zone, position, zustand(ctx, zone.name)) ?: continue
-            val neuerZustand = if (e.ereignis == "verlassen") "draussen" else "drin"
+            // NICHT aus dem Ereignistext ableiten - siehe lage(). Der
+            // Zustand kommt fertig aus bewerte().
             // ZUSTAND ZUERST: Faellt der Netzaufruf aus, ist die Meldung
             // verloren - aber sie wird nicht bei jedem Takt erneut versucht
             // und fuellt am Ende das Postfach. Eine verpasste Meldung ist
             // hier das kleinere Uebel.
-            setzeZustand(ctx, zone.name, neuerZustand)
+            setzeZustand(ctx, zone.name, e.zustand)
             if (e.ereignis.isEmpty()) continue   // erster Fix: nur festlegen
             if (melde(ctx, client, e)) gemeldet += e
         }

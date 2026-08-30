@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /**
  * Ortszonen: die Entscheidung, ob eine Zone betreten oder verlassen wurde.
@@ -294,5 +295,83 @@ class GeofenceTest {
         }
         assertTrue("Der Zonenname fehlt", koerper.contains("\"zone\""))
         assertTrue("Die Richtung fehlt", koerper.contains("\"ereignis\""))
+    }
+
+    // ------------------------------- Der erste Fix einer neuen Zone
+    //
+    // DER LIVEFALL VOM 30.08.2026: Nachdem 22 Kundenzonen dazugekommen
+    // waren, meldete die App fuer JEDE ein Verlassen - mit Entfernungen
+    // zwischen 6,5 und 18,7 km. Doreen war an keinem dieser Orte. In der
+    // Messreihe standen danach 22 Abfahrten, die nie stattgefunden haben,
+    // und genau daraus sollen spaeter die Fahrzeiten entstehen.
+    //
+    // Die Ursache lag NICHT in entscheide() - die Regel `erster Fix
+    // meldet nichts` hat funktioniert. Der Aufrufer hat sich den zu
+    // speichernden Zustand aus dem Ereignistext zusammengereimt, und der
+    // ist beim ersten Fix leer: nicht "verlassen", also else-Zweig, also
+    // "drin" - fuer eine Zone 17 km entfernt. Beim naechsten Takt war
+    // die Abfahrt dann folgerichtig.
+
+    @Test
+    fun ersterFixWeitWegIstDraussen() {
+        // Alex & Thomas, 17.615 m, Genauigkeit 100 m, Radius 100 m -
+        // Zeichen fuer Zeichen die Werte aus logs/geofence.log.
+        assertEquals("draussen", Geofence.lage(17615f, 100f, 100))
+        // Gemeldet wird trotzdem nichts: Der erste Fix legt nur fest.
+        assertEquals("", Geofence.entscheide(17615f, 100f, 100, null))
+    }
+
+    @Test
+    fun ersterFixInDerZoneIstDrin() {
+        // Die Gegenprobe - sonst waere der Fix nur die andere Haelfte
+        // desselben Fehlers: Wer den ersten Fix pauschal "draussen" nennt,
+        // meldet beim naechsten Takt ein Betreten, das nie stattfand.
+        assertEquals("drin", Geofence.lage(20f, GUT, R))
+        assertEquals("", Geofence.entscheide(20f, GUT, R, null))
+    }
+
+    @Test
+    fun lageSagtNichtsWennSieNichtsSagenKann() {
+        // Im Puffer-Ring und bei zu ungenauem Fix bleibt der bisherige
+        // Zustand stehen - lage() darf dort NICHT raten.
+        val imRing = (R + 30).toFloat()
+        assertNull("Puffer-Ring", Geofence.lage(imRing, GUT, R))
+        assertNull("zu ungenau", Geofence.lage(20f, 400f, R))
+    }
+
+    @Test
+    fun lageUndEntscheideWidersprechenSichNie() {
+        // Die eigentliche Absicherung: Wo entscheide() ein Betreten oder
+        // Verlassen meldet, muss lage() denselben Zustand sagen. Liefen
+        // die beiden auseinander, waere der gespeicherte Zustand wieder
+        // falsch - nur an anderer Stelle.
+        for (abstand in listOf(0f, 50f, 199f, 200f, 276f, 900f, 17615f)) {
+            val l = Geofence.lage(abstand, GUT, R) ?: continue
+            for (vorher in listOf(null, "drin", "draussen")) {
+                val e = Geofence.entscheide(abstand, GUT, R, vorher) ?: continue
+                val erwartet = when (e) {
+                    "betreten" -> "drin"
+                    "verlassen" -> "draussen"
+                    else -> l          // erster Fix: nichts zu vergleichen
+                }
+                assertEquals("Abstand $abstand, vorher $vorher", erwartet, l)
+            }
+        }
+    }
+
+    @Test
+    fun derZustandWirdNichtMehrAusDemEreignisAbgeleitet() {
+        // WAECHTER GEGEN DEN RUECKFALL: pruefen() braucht Android und ist
+        // hier nicht ausfuehrbar - geprueft wird deshalb der Quelltext.
+        // Das zeigt nur, dass die alte Ableitung weg ist, nicht dass der
+        // neue Weg wirkt; dafuer stehen die Faelle darueber.
+        val q = File("src/main/java/com/jarvis/app/Geofence.kt").readText()
+        assertTrue(
+            "pruefen() leitet den Zustand wieder aus dem Ereignistext ab - " +
+            "genau das hat am 30.08. die Messreihe verdorben",
+            !q.contains("if (e.ereignis == \"verlassen\")"))
+        assertTrue(
+            "Der Zustand wird nicht mehr aus bewerte() uebernommen",
+            q.contains("setzeZustand(ctx, zone.name, e.zustand)"))
     }
 }
