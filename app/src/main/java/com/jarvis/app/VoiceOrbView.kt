@@ -11,6 +11,8 @@ import android.graphics.SweepGradient
 import android.util.AttributeSet
 import android.view.View
 import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -18,35 +20,53 @@ import kotlin.math.sin
  * Der Voice Orb: eine leuchtende Glaskugel in Doreens Terracotta-Orange,
  * die zeigt, was Jarvis gerade tut.
  *
- * VARIANTE B ("kraeftiger"), von ihr am 18.08.2026 gewaehlt - nach einer
- * Stock-Aufnahme, die sie als Vorlage geschickt hat. Die Datei selbst
- * wandert NICHT in die App (Lizenz); nachgebaut ist allein der Eindruck,
- * in Zeichencode wie zuvor.
+ * STAND 03.09.2026 - "Fassung 1, so ruhig wie 2, Orange-Stufe C", von ihr
+ * aus einer Vorschau gewaehlt. Grundlage war ihr eigenes Referenz-Video,
+ * das sie ein zweites Mal geschickt hat, nachdem zwei Anlaeufe daneben
+ * lagen. Die Datei selbst wandert NICHT in die App (Lizenz); nachgebaut
+ * ist allein der Eindruck, in Zeichencode.
  *
- * WAS DIE VORLAGE AUSMACHT - und was der erste Anlauf falsch hatte:
- * Der helle Schimmer ist dort ein BAND, das an beiden Enden weich auf null
- * ausblendet und am Rand entlangfliesst. Mein erster Entwurf zeichnete
- * dafuer einen Bogen mit runden Kappen; der endet abrupt, und Doreens
- * Befund war treffend: "wirkt wie ein statisches kurzes Stueck Reifen, im
- * Reifen". Deshalb ist der Schimmer heute ein WINKEL-VERLAUF (siehe
- * glanz()) - in der Mitte hell, zu beiden Seiten auf null, ohne Kanten.
- * Mass genommen an Sekunde 5,00 der Vorlage, die sie dafuer benannt hat.
+ * WAS DAS VIDEO ZEIGT - und warum der Orb vorher "wie ein Reifen" wirkte:
+ * Dort ist keine massive Kugel mit Struktur darin zu sehen, sondern eine
+ * duennwandige Blase. Das Innere ist fast schwarz. Die ganze Bewegung
+ * sitzt im LICHTSAUM am Rand, und der ist UNGLEICHMAESSIG: helle, fast
+ * weisse Verdichtungen, dazwischen Stellen, an denen er beinahe
+ * verschwindet - und genau die wandern langsam um den Umfang.
  *
- * GROESSE: Die Kugel fuellt fast die Flaeche (230dp statt 180dp). Moeglich
- * wurde das, weil der Zugangsdaten-Knopf auf ihren Vorschlag nach unten
- * gewandert ist. Der Puls muss trotzdem hineinpassen - der groesste Wert
- * (sprechen: .80 + .155) liegt bei .955 und stoesst gerade nicht an.
+ * Der Saum davor war ein SweepGradient mit FESTEN Stufen: ein starres
+ * Muster, das als Ganzes rotiert. Ein starres Muster, das sich dreht, IST
+ * ein Reifen. Heute ist der Saum die Summe mehrerer Glocken, deren
+ * Zentren mit VERSCHIEDENEN Geschwindigkeiten wandern, eine davon
+ * gegenlaeufig - dadurch wiederholt sich das Bild nie, und es wirkt
+ * gerollt statt gedreht. Das ist der ganze Unterschied.
+ *
+ * ZWEI VERWORFENE ANLAEUFE, damit sie niemand wiederholt:
+ * 1. Ellipsen, die geradlinig durch die Kugel wandern - ihr Urteil: "als
+ *    wuerden sich Planeten auf elliptischen Umlaufbahnen bewegen".
+ * 2. Punkte und Sterne auf der Kugeloberflaeche, sphaerisch korrekt
+ *    gestaucht, dazu ein festes Spitzlicht und ein Randsaum - technisch
+ *    richtig, trotzdem abgelehnt: "sieht aus wie der Planet Saturn mit
+ *    Umlaufbahn". Ihre Vorgabe danach: "Es soll nur aussehen wie Glas
+ *    ohne stoerende Extras."
+ * Deshalb gibt es hier KEIN Spitzlicht, KEINE Punkte und kein Muster im
+ * Inneren - nur den Saum und zwei sehr schwache Reflexboegen.
+ *
+ * FARBE: Stufe C von dreien. Das kraeftige Orange (232,114,44) und das
+ * Hellorange (255,176,92) sind unveraendert die Farben der App; verschoben
+ * wurde der Aufhellton, der den gelben Eindruck machte - von cremig
+ * (255,222,190) auf (255,182,120). Dazu liegen die Schwellen hoch: Der
+ * groesste Teil des Saums bleibt im kraeftigen Orange, das Helle blitzt
+ * nur an den staerksten Stellen durch.
+ *
+ * GROESSE: Die Kugel fuellt fast die Flaeche (230dp). Der Puls muss
+ * hineinpassen - der groesste Wert (sprechen: .80 + .155) liegt bei .955
+ * und stoesst gerade nicht an.
  *
  * KEIN Weichzeichner-Filter: Das Leuchten entsteht aus Verlaeufen.
- * BlurMaskFilter braeuchte Software-Rendering fuer die ganze View - auf
- * einem Bildschirm, der bei jedem Zuruf animiert, ist das die teurere
- * Loesung.
+ * BlurMaskFilter braeuchte Software-Rendering fuer die ganze View.
  *
  * AKKU: Die Animation laeuft NUR, solange die View sichtbar am Fenster
- * haengt (siehe onWindowVisibilityChanged/onDetachedFromWindow). Sie sitzt
- * in der MainActivity, die Doreen selten offen hat - eine dauerhaft
- * zeichnende View waere hier reine Verschwendung. Der Weckwort-Dienst
- * laeuft davon voellig unberuehrt weiter.
+ * haengt. Der Weckwort-Dienst laeuft davon voellig unberuehrt weiter.
  */
 class VoiceOrbView @JvmOverloads constructor(
     context: Context,
@@ -59,14 +79,19 @@ class VoiceOrbView @JvmOverloads constructor(
     private val saumPinsel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
     }
-    private val glanzPinsel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val bogenPinsel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
     }
     private val dreher = Matrix()
 
-    /** basis = Ruhegroesse, puls = Ausschlag, tempo = Geschwindigkeit,
-     *  glow = Staerke des Aussenscheins, dreh = wie schnell der Schimmer
-     *  um den Rand wandert. Werte aus der Vorschau, die sie beurteilt hat. */
+    /** basis = Ruhegroesse, puls = Ausschlag, tempo = Geschwindigkeit des
+     *  Pulses, glow = Staerke des Aussenscheins, dreh = wie schnell die
+     *  Lichter um den Rand wandern (Bogenmass je Sekunde).
+     *
+     *  Die dreh-Werte stammen aus der Vorschau, die sie beurteilt hat -
+     *  sie sind bewusst LANGSAMER als vorher, weil ihre Wahl "Fassung 1,
+     *  so ruhig wie 2" lautete. Denken bleibt gut dreimal so schnell wie
+     *  Ruhe, damit der Zustand ablesbar bleibt. */
     private data class Form(
         val basis: Float, val puls: Float, val tempo: Float,
         val glow: Float, val dreh: Float,
@@ -74,12 +99,12 @@ class VoiceOrbView @JvmOverloads constructor(
 
     private val formen = mapOf(
         OrbZustand.AUS to Form(0.64f, 0f, 0f, 0.10f, 0f),
-        OrbZustand.RUHE to Form(0.70f, 0.025f, 0.55f, 0.45f, 0.18f),
-        OrbZustand.LAUSCHEN to Form(0.78f, 0.090f, 1.7f, 1.0f, 0.55f),
-        OrbZustand.DENKEN to Form(0.73f, 0.040f, 3.6f, 0.62f, 2.1f),
-        OrbZustand.SPRECHEN to Form(0.80f, 0.155f, 2.4f, 0.95f, 0.75f),
+        OrbZustand.RUHE to Form(0.70f, 0.025f, 0.55f, 0.45f, 0.214f),
+        OrbZustand.LAUSCHEN to Form(0.78f, 0.090f, 1.7f, 1.0f, 0.351f),
+        OrbZustand.DENKEN to Form(0.73f, 0.040f, 3.6f, 0.62f, 0.721f),
+        OrbZustand.SPRECHEN to Form(0.80f, 0.155f, 2.4f, 0.95f, 0.468f),
         // Fehler: still stehende, matte Kugel. Bewusst OHNE Puls und ohne
-        // wandernden Schimmer - ein lebhafter Orb neben einer Fehlermeldung
+        // wandernde Lichter - ein lebhafter Orb neben einer Fehlermeldung
         // liest sich wie "alles in Ordnung".
         OrbZustand.FEHLER to Form(0.66f, 0f, 0f, 0.22f, 0f),
     )
@@ -111,69 +136,101 @@ class VoiceOrbView @JvmOverloads constructor(
 
     private fun orange(a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), 232, 114, 44)
     private fun hell(a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), 255, 176, 92)
-    private fun schimmer(a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), 255, 222, 190)
+
+    /** Der Aufhellton. NICHT mehr cremig (255,222,190) - der machte den
+     *  gelben Eindruck, den sie am 03.09.2026 beanstandet hat. */
+    private fun spitze(a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), 255, 182, 120)
 
     /**
-     * Ein Winkel-Verlauf, dessen Startpunkt frei liegt. SweepGradient
-     * beginnt in Android immer bei 3 Uhr - gedreht wird deshalb ueber eine
-     * Matrix auf dem Shader. (Im Web erledigt das der Startwinkel von
-     * createConicGradient; das ist der einzige nennenswerte Unterschied
-     * zwischen der Vorschau und diesem Code.)
+     * Eine Glocke um einen Winkel herum, ueber die Kreisgrenze hinweg
+     * richtig gerechnet. Ohne die Normierung auf plus/minus PI haette
+     * jedes Licht bei 3 Uhr eine harte Kante.
      */
-    private fun sweep(
-        cx: Float, cy: Float, farben: IntArray, stufen: FloatArray, startRad: Float,
-    ): SweepGradient {
-        val s = SweepGradient(cx, cy, farben, stufen)
-        dreher.reset()
-        dreher.setRotate((startRad * 180f / PI.toFloat()), cx, cy)
-        s.setLocalMatrix(dreher)
-        return s
+    private fun glocke(theta: Float, mitte: Float, breite: Float): Float {
+        var d = theta - mitte
+        val zwei = 2f * PI.toFloat()
+        while (d > PI.toFloat()) d -= zwei
+        while (d < -PI.toFloat()) d += zwei
+        return exp(-(d * d) / (2f * breite * breite))
     }
 
-    /** Der ungleich verteilte Lichtsaum am Rand der Kugel. */
-    private fun saum(
-        canvas: Canvas, cx: Float, cy: Float, r: Float,
-        breite: Float, dreh: Float, grund: Float, spitze: Float,
-    ) {
-        saumPinsel.shader = sweep(
-            cx, cy,
-            intArrayOf(
-                hell(spitze), orange(grund), orange(grund * 0.35f),
-                hell(spitze * 0.85f), orange(grund * 0.35f), orange(grund),
-                hell(spitze),
-            ),
-            floatArrayOf(0f, 0.13f, 0.30f, 0.50f, 0.70f, 0.87f, 1f),
-            dreh,
-        )
+    /**
+     * DIE STELLE, UM DIE ES GING.
+     *
+     * Der Saum entsteht aus drei Lichtern, die mit verschiedenen Tempi um
+     * den Rand wandern - das dritte gegenlaeufig. Weil sich ihre Perioden
+     * nicht teilen, wiederholt sich das Bild praktisch nie; genau das
+     * unterscheidet eine rollende Kugel von einem rotierenden Ring.
+     *
+     * Gezeichnet wird in ZWEI Durchgaengen statt in vielen Segmenten:
+     * ein duenner Saum ueberall, darueber ein breiter, der nur an den
+     * hellen Stellen sichtbar wird (Alpha mit w hoch drei). Zusammen
+     * ergibt das die wandernde Verdickung aus dem Video - mit zwei
+     * Zeichenschritten statt zweihundert, was auf dem Handy zaehlt.
+     */
+    private fun saumFarben(t: Float, dreh: Float, licht: Float, nurSpitzen: Boolean): IntArray {
+        val zwei = 2f * PI.toFloat()
+        val v = t * dreh
+        val m1 = v
+        val m2 = -v * 0.62f + 2f
+        val m3 = v * 1.73f + 4f
+        val k = licht * 0.88f
+        val farben = IntArray(STUFEN + 1)
+        for (i in 0..STUFEN) {
+            val theta = (i.toFloat() / STUFEN) * zwei
+            var w = 0.06f +
+                0.80f * glocke(theta, m1, 0.58f) +
+                0.55f * glocke(theta, m2, 0.44f) +
+                0.42f * glocke(theta, m3, 0.34f)
+            if (w > 1f) w = 1f
+            // Der breite Durchgang bleibt an dunklen Stellen unsichtbar.
+            val d = if (nurSpitzen) w * w * w else 1f
+            farben[i] = when {
+                w > 0.90f -> spitze(min(0.95f, w * k) * d)
+                w > 0.68f -> hell(min(0.85f, w * k * 0.95f) * d)
+                else -> orange(min(0.70f, w * k * 0.85f) * d)
+            }
+        }
+        return farben
+    }
+
+    private fun saum(canvas: Canvas, cx: Float, cy: Float, r: Float, breite: Float, farben: IntArray) {
+        saumPinsel.shader = SweepGradient(cx, cy, farben, STELLEN)
         saumPinsel.strokeWidth = breite
         canvas.drawCircle(cx, cy, r - breite / 2f, saumPinsel)
     }
 
     /**
-     * DER SCHIMMER - die Stelle, um die es Doreen ging.
-     * In der Mitte hell, zu beiden Enden auf null. Damit hat er keine
-     * Kanten; ein Bogen mit runden Kappen haette welche.
+     * Ein Reflexbogen im Inneren. Sein Kreismittelpunkt ist VERSETZT -
+     * dadurch laeuft er ein Stueck weit parallel zum Rand nach innen,
+     * so wie die weichen Boegen in der Vorlage. Gezeichnet wird nur der
+     * Abschnitt gegenueber dem Versatz; der Rest des Kreises bleibt auf
+     * Alpha null und damit unsichtbar, weshalb hier kein Clipping noetig
+     * ist (ein Kreis-Clip waere auf Android ohne Antialiasing und wuerde
+     * eine treppige Kante hinterlassen).
      */
-    private fun glanz(
-        canvas: Canvas, cx: Float, cy: Float, radius: Float,
-        breite: Float, mitte: Float, weite: Float, deckung: Float,
+    private fun innenbogen(
+        canvas: Canvas, cx: Float, cy: Float, r: Float,
+        phi: Float, tiefe: Float, spanne: Float, breite: Float, deckung: Float,
     ) {
-        val spanne = ((weite * 2f) / (2f * PI.toFloat())).coerceAtMost(0.999f)
-        glanzPinsel.shader = sweep(
-            cx, cy,
+        val vx = cx + cos(phi) * r * tiefe
+        val vy = cy + sin(phi) * r * tiefe
+        val rr = r * (1f - tiefe * 0.55f)
+        val anteil = (spanne / (2f * PI.toFloat())).coerceAtMost(0.999f)
+        val s = SweepGradient(
+            vx, vy,
             intArrayOf(
-                schimmer(0f), schimmer(deckung * 0.22f), schimmer(deckung * 0.72f),
-                schimmer(deckung), schimmer(deckung * 0.72f), schimmer(deckung * 0.22f),
-                schimmer(0f), schimmer(0f),
+                hell(0f), hell(deckung * 0.30f), hell(deckung),
+                hell(deckung * 0.30f), hell(0f), hell(0f),
             ),
-            floatArrayOf(
-                0f, spanne * 0.22f, spanne * 0.40f, spanne * 0.50f,
-                spanne * 0.62f, spanne * 0.80f, spanne, 1f,
-            ),
-            mitte - weite,
+            floatArrayOf(0f, anteil * 0.25f, anteil * 0.5f, anteil * 0.75f, anteil, 1f),
         )
-        glanzPinsel.strokeWidth = breite
-        canvas.drawCircle(cx, cy, radius, glanzPinsel)
+        dreher.reset()
+        dreher.setRotate(((phi + PI.toFloat() - spanne / 2f) * 180f / PI.toFloat()), vx, vy)
+        s.setLocalMatrix(dreher)
+        bogenPinsel.shader = s
+        bogenPinsel.strokeWidth = breite
+        canvas.drawCircle(vx, vy, rr, bogenPinsel)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -188,61 +245,53 @@ class VoiceOrbView @JvmOverloads constructor(
         if (r <= 0f) return
 
         val matt = zustand == OrbZustand.AUS || zustand == OrbZustand.FEHLER
-        val dreh = -1.2f + t * f.dreh
-        // Die Helligkeit traegt den Zustand mit: Bei einer Kugel, die die
-        // Flaeche fuellt, kann die Groesse allein ihn nicht mehr zeigen.
-        val licht = 0.55f + 0.45f * f.glow
+        val licht = if (matt) 0.45f else 0.55f + 0.45f * f.glow
 
-        // AUSSENSCHEIN - und der Grund fuer die Begrenzung:
-        // Mit r * 2.9 reichte der Schein ueber die ganze Flaeche hinaus.
-        // Die View ist rechteckig, der Schein hellte sie bis in die Ecken
-        // auf - auf dem fast schwarzen App-Grund war der Orb dadurch ein
-        // sichtbares helleres RECHTECK statt einer frei schwebenden Kugel
-        // (Doreens Screenshot vom 18.08.2026). Deshalb endet der Schein
-        // nie spaeter als die halbe kurze Kante: Dort ist er auf null,
-        // und die Ecken bleiben schwarz. Die Begrenzung muss an der VIEW
-        // haengen, nicht am Radius - beim Sprechen waechst die Kugel, und
-        // ein fester Faktor liefe wieder hinaus.
-        val scheinR = (r * 1.5f).coerceAtMost(min(width, height) / 2f)
+        // AUSSENSCHEIN. Deutlich schwaecher als frueher: Im Video liegt die
+        // Kugel auf fast schwarzem Grund, und ein kraeftiger Hof machte aus
+        // ihr eine braune Scheibe statt einer Blase.
+        // Die Begrenzung muss an der VIEW haengen, nicht am Radius - beim
+        // Sprechen waechst die Kugel, und ein fester Faktor liefe ueber die
+        // Flaeche hinaus. Dann waere der Orb ein sichtbares helleres
+        // RECHTECK statt einer frei schwebenden Kugel (Doreens Screenshot
+        // vom 18.08.2026).
+        val scheinR = (r * 1.45f).coerceAtMost(min(width, height) / 2f)
         scheinPinsel.shader = RadialGradient(
             cx, cy, scheinR,
-            intArrayOf(orange(0.34f * f.glow), orange(0.13f * f.glow), orange(0f)),
-            floatArrayOf(0f, 0.45f, 1f),
+            intArrayOf(orange(0.10f * f.glow), orange(0.055f * f.glow), orange(0f)),
+            floatArrayOf(0f, 0.62f, 1f),
             Shader.TileMode.CLAMP,
         )
         canvas.drawCircle(cx, cy, scheinR, scheinPinsel)
 
-        // Der Glaskoerper: innen fast schwarz, zum Rand hin ein warmer Hauch.
+        // Der Glaskoerper: innen fast schwarz, zum Rand hin ein warmer
+        // Hauch. Bewusst sehr durchsichtig - eine duennwandige Blase, keine
+        // massive Kugel.
         koerperPinsel.shader = RadialGradient(
-            cx - r * 0.30f, cy - r * 0.34f, r * 1.30f,
+            cx, cy, r,
             intArrayOf(
-                Color.argb(209, 78, 46, 32),
-                Color.argb(219, 34, 20, 15),
-                Color.argb(230, 16, 9, 8),
-                Color.argb(158, 120, 52, 24),
+                Color.argb(107, 18, 9, 5),
+                Color.argb(92, 22, 11, 6),
+                Color.argb(77, 38, 18, 9),
+                Color.argb(41, 46, 21, 11),
             ),
-            floatArrayOf(0f, 0.42f, 0.86f, 1f),
+            floatArrayOf(0f, 0.66f, 0.92f, 1f),
             Shader.TileMode.CLAMP,
         )
         canvas.drawCircle(cx, cy, r, koerperPinsel)
 
-        val breite = (r * 0.075f).coerceAtLeast(5f * resources.displayMetrics.density)
-        saum(
-            canvas, cx, cy, r, breite, dreh,
-            if (matt) 0.40f else 1f * licht,
-            if (matt) 0.45f else 1f * licht,
-        )
+        val dicht = r * 0.046f
+        val duenn = (dicht * 0.42f).coerceAtLeast(1.6f * resources.displayMetrics.density)
+        saum(canvas, cx, cy, r, duenn, saumFarben(t, f.dreh, licht, false))
+        saum(canvas, cx, cy, r, dicht * 1.25f, saumFarben(t, f.dreh, licht, true))
 
         if (!matt) {
-            val mitteGlanz = r - breite * 0.5f
-            // Breiter, sehr heller Schimmer - Mass genommen an t = 5,00 s.
-            glanz(canvas, cx, cy, mitteGlanz, breite * 1.5f, dreh - 2.4f, 0.95f, 0.95f * licht)
-            // Ein zweiter, schwaecherer weiter hinten - die Vorlage hat
-            // ebenfalls mehrere Glanzstellen zugleich.
-            glanz(canvas, cx, cy, mitteGlanz, breite * 1.15f, dreh + 1.0f, 0.55f, 0.34f * licht)
+            val v = t * f.dreh
+            innenbogen(canvas, cx, cy, r, v + 0.5f, 0.19f, 1.05f, r * 0.030f, 0.15f * licht)
+            innenbogen(canvas, cx, cy, r, -v * 0.62f + 2.4f, 0.28f, 0.85f, r * 0.024f, 0.09f * licht)
         }
 
-        // Weiterzeichnen, solange sich etwas bewegt: Der Schimmer wandert
+        // Weiterzeichnen, solange sich etwas bewegt: Die Lichter wandern
         // auch dann, wenn die Kugel nicht pulsiert (Ruhe).
         if ((f.puls > 0f || f.dreh > 0f) && isShown) postInvalidateOnAnimation()
     }
@@ -258,5 +307,13 @@ class VoiceOrbView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         start = 0L
+    }
+
+    private companion object {
+        /** Aufloesung des Saums: 72 Stufen sind 5 Grad - fein genug fuer
+         *  die schmalste Glocke (rund 19 Grad breit) und billig genug fuer
+         *  zwei Zeichenschritte je Bild. */
+        const val STUFEN = 72
+        val STELLEN = FloatArray(STUFEN + 1) { it.toFloat() / STUFEN }
     }
 }
