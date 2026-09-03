@@ -139,7 +139,7 @@ class VoiceOrbView @JvmOverloads constructor(
 
     /** Der Aufhellton. NICHT mehr cremig (255,222,190) - der machte den
      *  gelben Eindruck, den sie am 03.09.2026 beanstandet hat. */
-    private fun spitze(a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), 255, 222, 190)
+    private fun spitze(a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), 255, 182, 120)
 
     /**
      * Eine Glocke um einen Winkel herum, ueber die Kreisgrenze hinweg
