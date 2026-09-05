@@ -194,7 +194,7 @@ object StreamClient {
             .post(body.build())
             .build()
 
-        val queue = AudioQueue(cacheDir, context)
+        val queue = AudioQueue(cacheDir, ctx)
         var bloecke = 0
         val gesamttext = StringBuilder()
 
