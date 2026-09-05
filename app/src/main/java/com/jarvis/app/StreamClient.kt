@@ -31,7 +31,10 @@ import java.util.concurrent.CountDownLatch
 object StreamClient {
 
     /** Spielt eintreffende Audio-Bloecke LUECKENLOS nacheinander ab. */
-    class AudioQueue(private val cacheDir: File) {
+    class AudioQueue(
+        private val cacheDir: File,
+        private val context: Context? = null,
+    ) {
         private val warteschlange = ArrayDeque<File>()
         private var spieler: MediaPlayer? = null
         private var laeuft = false
@@ -54,12 +57,20 @@ object StreamClient {
                 laeuft = false
                 // Nichts mehr in der Warteschlange UND der Server ist fertig
                 // -> die Antwort ist vollstaendig gesprochen.
-                if (stromFertig) fertig.countDown()
+                if (stromFertig) {
+                    // Die Antwort ist vollstaendig gesprochen -
+                    // ab hier darf die Musik wieder laut werden.
+                    context?.let { Sprachausgabe.fokusFreigeben(it) }
+                    fertig.countDown()
+                }
                 return
             }
             laeuft = true
             try {
+                // Musik leiser, solange Jarvis spricht.
+                context?.let { Sprachausgabe.fokusAnfordern(it) }
                 val mp = MediaPlayer()
+                mp.setAudioAttributes(Sprachausgabe.ATTRIBUTE)
                 mp.setDataSource(datei.absolutePath)
                 mp.setOnCompletionListener {
                     it.release()
@@ -92,6 +103,7 @@ object StreamClient {
 
         @Synchronized
         fun abbrechen() {
+            context?.let { Sprachausgabe.fokusFreigeben(it) }
             try { spieler?.release() } catch (_: Exception) {}
             spieler = null
             warteschlange.forEach { it.delete() }
@@ -182,7 +194,7 @@ object StreamClient {
             .post(body.build())
             .build()
 
-        val queue = AudioQueue(cacheDir)
+        val queue = AudioQueue(cacheDir, context)
         var bloecke = 0
         val gesamttext = StringBuilder()
 

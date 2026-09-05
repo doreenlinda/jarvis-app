@@ -805,13 +805,20 @@ class WakeWordService : Service() {
 
     private fun spieleDatei(pfad: String) {
         try {
+            // Musik leiser, auch fuer die dringende Meldung - der
+            // Wecker-AUSGANG bleibt davon unberuehrt.
+            Sprachausgabe.fokusAnfordern(this)
             val mp = MediaPlayer()
             mp.setAudioAttributes(weckerAusgang())
             mp.setDataSource(pfad)
-            mp.setOnCompletionListener { it.release() }
+            mp.setOnCompletionListener {
+                it.release()
+                Sprachausgabe.fokusFreigeben(this)
+            }
             mp.prepare()
             mp.start()
         } catch (t: Throwable) {
+            Sprachausgabe.fokusFreigeben(this)
             meldeStatus("Dringende Meldung konnte nicht vorgelesen werden: $t")
         }
     }
@@ -1115,7 +1122,9 @@ class WakeWordService : Service() {
             val tmp = File(cacheDir, "wake_antwort.mp3")
             tmp.writeBytes(bytes)
             val fertig = Object()
+            Sprachausgabe.fokusAnfordern(this)
             val mp = MediaPlayer()
+            mp.setAudioAttributes(Sprachausgabe.ATTRIBUTE)
             mp.setDataSource(tmp.absolutePath)
             mp.setOnCompletionListener {
                 synchronized(fertig) { fertig.notifyAll() }
@@ -1128,7 +1137,8 @@ class WakeWordService : Service() {
         } finally {
             // finally, nicht am Ende des try: Bricht das Abspielen ab,
             // bliebe der Orb sonst bis zum Ablauf der Hoechstdauer im
-            // Sprech-Zustand.
+            // Sprech-Zustand - und die Musik dauerhaft leise.
+            Sprachausgabe.fokusFreigeben(this)
             OrbZustand.sprichtNicht(this)
         }
     }

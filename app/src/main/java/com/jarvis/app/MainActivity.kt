@@ -737,14 +737,22 @@ class MainActivity : AppCompatActivity() {
             val tmp = File(cacheDir, "antwort.mp3")
             tmp.writeBytes(bytes)
             player?.release()
+            Sprachausgabe.fokusAnfordern(this)
             val mp = MediaPlayer()
+            mp.setAudioAttributes(Sprachausgabe.ATTRIBUTE)
             mp.setDataSource(tmp.absolutePath)
-            mp.setOnCompletionListener { it.release(); if (player === it) player = null }
+            mp.setOnCompletionListener {
+                it.release()
+                if (player === it) player = null
+                Sprachausgabe.fokusFreigeben(this)
+            }
             mp.prepare()
             mp.start()
             player = mp
         } catch (e: Exception) {
             // Antworttext steht ja schon da - Tonausfall ist nicht schlimm.
+            // Der Fokus muss trotzdem zurueck, sonst bleibt die Musik leise.
+            Sprachausgabe.fokusFreigeben(this)
         }
     }
 
@@ -963,12 +971,18 @@ class MainActivity : AppCompatActivity() {
     private fun spieleDatei(pfad: String) {
         try {
             player?.release()
+            Sprachausgabe.fokusAnfordern(this)
             player = MediaPlayer().apply {
+                setAudioAttributes(Sprachausgabe.ATTRIBUTE)
                 setDataSource(pfad)
+                setOnCompletionListener {
+                    Sprachausgabe.fokusFreigeben(this@MainActivity)
+                }
                 prepare()
                 start()
             }
         } catch (e: Exception) {
+            Sprachausgabe.fokusFreigeben(this)
             answerView.text = "Konnte die Aufnahme nicht abspielen: $e"
         }
     }
