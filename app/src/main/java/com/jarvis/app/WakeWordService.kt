@@ -824,7 +824,7 @@ class WakeWordService : Service() {
     }
 
     private fun weckerAusgang() = android.media.AudioAttributes.Builder()
-        .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+        .setUsage(android.media.AudioAttributes.USAGE_ASSISTANT)
         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
 
