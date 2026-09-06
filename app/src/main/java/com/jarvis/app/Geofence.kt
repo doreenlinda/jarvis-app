@@ -98,7 +98,7 @@ object Geofence {
      * NICHT dabei: "laden" (dort will sie die Einkaufsliste) und
      * "zuhause" (sonst waere der Dienst die meiste Zeit taub).
      */
-    val RUHE_ARTEN = setOf<String>()   // SABOTAGE
+    val RUHE_ARTEN = setOf("kunde", "arzt")
 
     private fun prefs(ctx: Context) =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
