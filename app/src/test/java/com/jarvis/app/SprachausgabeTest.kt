@@ -45,11 +45,65 @@ class SprachausgabeTest {
         return datei.readText()
     }
 
+    /**
+     * Schneidet den Block einer Konstanten heraus - von ihrer Zeile bis
+     * zum abschliessenden build(). Eine Suche im GANZEN Quelltext taugt
+     * hier nicht: USAGE_ASSISTANT steht weiterhin darin (im Fokus-Block),
+     * eine contains-Pruefung bliebe also auch dann gruen, wenn das
+     * Routing des Players zurueckgedreht wird.
+     */
+    private fun block(quelle: String, name: String): String {
+        val start = quelle.indexOf("val " + name + ":")
+        assertTrue("Konstante nicht gefunden: " + name, start >= 0)
+        val ende = quelle.indexOf(".build()", start)
+        assertTrue("build() nach " + name + " nicht gefunden", ende >= 0)
+        return quelle.substring(start, ende)
+    }
+
+    /**
+     * AN IHREM GERAET GEMESSEN (06.09.2026) - die Erwartung wurde
+     * umgedreht, weil die Messung sie umgedreht hat, nicht um den Test
+     * gruen zu bekommen:
+     *
+     *   v0.49 setzte USAGE_ASSISTANT auf den PLAYER. Ohne Kopfhoerer kam
+     *   der Ton an, mit Bluetooth-Kopfhoerern hoerte sie GAR NICHTS -
+     *   und Bluetooth ist genau der Weg, um den es ihr ging (Auto).
+     *
+     * Der Player traegt deshalb USAGE_MEDIA (Routing), die Absicht steht
+     * im Fokus-Antrag. Wer das zurueckdreht, nimmt ihr den Ton ueber
+     * Kopfhoerer und im Auto.
+     */
     @Test
-    fun dieStimmeIstAssistenzUndDuecktStattAnzuhalten() {
+    fun derPlayerLaeuftUeberDenMedienwegNichtUeberAssistant() {
         val q = lies("Sprachausgabe.kt")
-        assertTrue("USAGE_ASSISTANT fehlt - die Stimme gaelte wieder als Musik",
-            q.contains("USAGE_ASSISTANT"))
+        val spielen = block(q, "ATTRIBUTE")
+        assertTrue("Der Player muss USAGE_MEDIA nutzen - ueber Bluetooth " +
+            "kommt USAGE_ASSISTANT an ihrem Geraet nicht an",
+            spielen.contains("USAGE_MEDIA"))
+        assertTrue("USAGE_ASSISTANT auf dem Player - genau der Fehler aus " +
+            "v0.49: mit Kopfhoerern hoert sie dann nichts",
+            !spielen.contains("USAGE_ASSISTANT"))
+    }
+
+    /**
+     * Die Absichtserklaerung bleibt ASSISTANT - hierueber fliesst kein
+     * Ton, sie beruehrt das Routing also nicht. Ohne sie waere der
+     * Fokus-Antrag der einer beliebigen Medien-App.
+     */
+    @Test
+    fun derFokusAntragBleibtAssistenz() {
+        val q = lies("Sprachausgabe.kt")
+        assertTrue("FOKUS_ATTRIBUTE fehlt",
+            q.contains("FOKUS_ATTRIBUTE"))
+        assertTrue("Der Fokus-Antrag sollte ASSISTANT bleiben",
+            block(q, "FOKUS_ATTRIBUTE").contains("USAGE_ASSISTANT"))
+        assertTrue("Der Fokus-Antrag nutzt nicht FOKUS_ATTRIBUTE",
+            q.contains("setAudioAttributes(FOKUS_ATTRIBUTE)"))
+    }
+
+    @Test
+    fun dieStimmeIstSpracheUndDuecktStattAnzuhalten() {
+        val q = lies("Sprachausgabe.kt")
         assertTrue("CONTENT_TYPE_SPEECH fehlt",
             q.contains("CONTENT_TYPE_SPEECH"))
         // MAY_DUCK laesst die Musik leiser werden. Ohne den Zusatz wuerde

@@ -22,10 +22,14 @@ import android.media.AudioManager
  *   2. Als "Musik" mischt sich die Stimme mit der Musik, statt sich
  *      davor zu schieben.
  *
- * USAGE_ASSISTANT sagt dem System, was es wirklich ist: eine
- * Assistenz-Stimme. AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK laesst die Musik
- * leiser werden statt sie anzuhalten - dieselbe Mechanik, die auch
- * Navigationsansagen nutzen.
+ * AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK laesst die Musik leiser werden
+ * statt sie anzuhalten - dieselbe Mechanik, die auch Navigationsansagen
+ * nutzen. DAS Ducking ist ihr Ziel, und es haengt allein am Fokus.
+ *
+ * NACHGEBESSERT am 06.09.2026: v0.49 hatte zusaetzlich die Usage des
+ * Players auf USAGE_ASSISTANT gestellt - und damit den Ton ueber
+ * Bluetooth verloren (Messung siehe bei ATTRIBUTE). Routing und Absicht
+ * sind seither getrennt.
  *
  * NICHT ANGETASTET: der Wecker-Ausgang der DRINGENDEN Meldungen
  * (USAGE_ALARM in WakeWordService). Der ist seit v0.32 bewusst so gebaut,
@@ -41,8 +45,38 @@ import android.media.AudioManager
  */
 object Sprachausgabe {
 
-    /** Fuer alles, was Jarvis SPRICHT (nicht fuer Alarmtoene). */
+    /**
+     * Fuer alles, was Jarvis SPRICHT (nicht fuer Alarmtoene).
+     *
+     * USAGE_MEDIA, NICHT USAGE_ASSISTANT - das ist an ihrem Geraet
+     * GEMESSEN (06.09.2026) und keine Geschmacksfrage:
+     *
+     *   ohne Kopfhoerer   Ton kommt an
+     *   mit Kopfhoerern   sie hoert GAR NICHTS
+     *
+     * v0.49 hatte hier USAGE_ASSISTANT gesetzt. Das beschreibt zwar
+     * richtig, WAS die Stimme ist - ihr Geraet gibt diesen Strom ueber
+     * Bluetooth aber nicht aus. Und Bluetooth ist genau der Weg, um den
+     * es ihr ging: Kopfhoerer und Auto.
+     *
+     * Getrennt wird deshalb, was v0.49 vermischt hatte:
+     *   ROUTING   (wohin der Ton geht)      -> hier, USAGE_MEDIA
+     *   ABSICHT   (es spricht ein Assistent) -> FOKUS_ATTRIBUTE unten
+     *
+     * Das Ducking haengt am FOKUS-Antrag, nicht an der Usage des
+     * Players - ihr eigentliches Ziel bleibt damit erhalten.
+     */
     val ATTRIBUTE: AudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
+
+    /**
+     * NUR fuer den Fokus-Antrag - hierueber fliesst kein Ton, es ist die
+     * Absichtserklaerung an das System. Deshalb darf sie ASSISTANT
+     * bleiben, ohne das Routing zu beruehren.
+     */
+    private val FOKUS_ATTRIBUTE: AudioAttributes = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_ASSISTANT)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
@@ -65,7 +99,7 @@ object Sprachausgabe {
                 .getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val neu = AudioFocusRequest.Builder(
                 AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
-            ).setAudioAttributes(ATTRIBUTE).build()
+            ).setAudioAttributes(FOKUS_ATTRIBUTE).build()
             manager.requestAudioFocus(neu)
             // Auch wenn das System ablehnt, wird gemerkt: Sonst bliebe ein
             // Antrag offen, den niemand mehr zurueckgibt.
