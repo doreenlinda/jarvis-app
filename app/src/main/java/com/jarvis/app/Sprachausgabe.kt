@@ -67,7 +67,7 @@ object Sprachausgabe {
      * Players - ihr eigentliches Ziel bleibt damit erhalten.
      */
     val ATTRIBUTE: AudioAttributes = AudioAttributes.Builder()
-        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+        .setUsage(AudioAttributes.USAGE_MEDIA)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
 
