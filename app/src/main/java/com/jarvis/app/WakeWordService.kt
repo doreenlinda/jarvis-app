@@ -948,7 +948,7 @@ class WakeWordService : Service() {
                 if (pegel > SPRACH_PEGEL) {
                     gesprochen = true
                     stilleMs = 0
-                } else {  // SABOTAGE
+                } else if (gesprochen) {
                     stilleMs += 80
                     if (stilleMs >= STILLE_ENDE_MS) break
                 }
