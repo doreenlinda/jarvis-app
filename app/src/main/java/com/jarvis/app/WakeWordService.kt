@@ -132,7 +132,26 @@ class WakeWordService : Service() {
         private const val SPRACH_PEGEL = 1500
         // Nach so viel Stille IN FOLGE endet die Aufnahme (nur, wenn vorher
         // ueberhaupt gesprochen wurde), Obergrenze darunter.
-        private const val STILLE_ENDE_MS = 1300
+        //
+        // 06.09.2026: von 1300 auf 800 ms, DOREENS WAHL aus drei
+        // vorgelegten Werten (1000 / 900 / 800). Anlass war ihr Auftrag
+        // "bis er reagiert, dauert immer noch sehr lange". Gemessen wurde
+        // vorher, wo die Zeit wirklich hingeht: Sie schickte denselben Satz
+        // einmal zugerufen (5,02 s) und einmal getippt (5,49 s) - die
+        // Spracherkennung kostet also nur rund 1 s, und serverseitig ist
+        // kaum etwas zu holen (4 von 5 Sekunden gehoeren Anthropic und
+        // ElevenLabs). Der zweite gehandelte Kandidat, der Router, wurde
+        // ueber alle 17 Laeufe des Tages gemessen und AUSGESCHLOSSEN: In 15
+        // davon war die Vertonung der letzte Baustein vor dem ersten Ton,
+        // der Router war 1-2 s vorher fertig. Damit blieb dieser Wert als
+        // einziger echter Hebel uebrig.
+        //
+        // DER PREIS IST BENANNT UND VON IHR ANGENOMMEN: Kuerzer heisst
+        // schneller, aber auch, dass eine Denkpause MITTEN im Satz die
+        // Aufnahme beendet. Eine Pause VOR dem ersten Wort ist unkritisch -
+        // stilleMs zaehlt erst, wenn ueberhaupt schon gesprochen wurde.
+        // Faellt er ihr ins Wort, ist der Rueckweg diese eine Zahl.
+        private const val STILLE_ENDE_MS = 800
         // Obergrenze der Aufnahme. Am 27.07.2026 von 10 s auf 30 s erhoeht:
         // Doreens Zuruf "Lege einen neuen Ordner in Gmail an, DEKRA, und
         // verschiebe die beiden E-Mails im Posteingang in den ..." brach
