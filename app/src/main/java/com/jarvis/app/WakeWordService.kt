@@ -146,6 +146,18 @@ class WakeWordService : Service() {
         // im schlimmsten Fall 30 s Aufnahme statt 10 - vertretbar, seit
         // Schwelle 0,65 und zwei Bestaetigungsbloecke die Fehlalarme
         // praktisch abgestellt haben.
+        /**
+         * Wie oft in einer Ruhezone (Kundschaft, Arzt) nachgesehen wird,
+         * ob sie weg ist.
+         *
+         * 20 s, damit das Zuhoeren nach dem Verlassen schnell wieder da
+         * ist - sie steigt ins Auto und will "trag den naechsten Termin
+         * ein" sagen koennen. Oefter nachzusehen kostet nichts: dabei ist
+         * weder Mikrofon noch Netz beteiligt, gelesen wird nur der
+         * gespeicherte Zonen-Zustand.
+         */
+        private const val PAUSE_PRUEFUNG_MS = 20_000L
+
         private const val AUFNAHME_MAX_MS = 30_000
         // NACHFASS-FENSTER (v0.21): So lange bleibt das Mikrofon nach der
         // Antwort offen, damit Doreen ohne erneutes "Hey Jarvis" weiterreden
@@ -408,6 +420,23 @@ class WakeWordService : Service() {
             try {
                 selbsttest()
                 while (aktiv) {
+                    // Bei Kundschaft und Aerzten wird nicht zugehoert
+                    // (Doreens Entscheidung, 06.09.2026). Das Mikrofon
+                    // wird dabei GAR NICHT erst geoeffnet - ein bloss
+                    // ignorierter Strom liesse das Mikrofon-Symbol beim
+                    // Kunden weiterleuchten.
+                    //
+                    // Nur das ZUHOEREN setzt aus: Postfach, Aufbruch-Alarm
+                    // und die Ortsmessung laufen weiter. Gerade beim
+                    // Kunden braucht sie den Alarm, weil der naechste
+                    // Termin ansteht.
+                    val ruhe = Geofence.ruhezone(this)
+                    if (ruhe != null) {
+                        meldeStatus("Pausiert bei $ruhe – hier höre ich " +
+                            "nicht zu. Sobald Sie weg sind, geht es weiter.")
+                        Thread.sleep(PAUSE_PRUEFUNG_MS)
+                        continue
+                    }
                     if (!lauscheBisWeckwort()) {
                         // Mikrofon-Aussetzer (z. B. andere App hatte es kurz):
                         // kurz warten und erneut versuchen statt still

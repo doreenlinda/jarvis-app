@@ -78,8 +78,27 @@ object Geofence {
     /** Aelter als das, wird ein Fix nicht mehr fuer eine Entscheidung benutzt. */
     const val FIX_HALTBAR_MS = 5 * 60 * 1000L
 
+    /**
+     * `art` ist "kunde", "arzt", "laden", "zuhause" oder leer.
+     *
+     * Selbst gesetzte Zonen haben keine Art (der Knopf legt immer
+     * "Zuhause" an) - deshalb der Standardwert.
+     */
     data class Zone(val name: String, val lat: Double, val lon: Double,
-                    val radius: Int)
+                    val radius: Int, val art: String = "")
+
+    /**
+     * In diesen Zonen wird NICHT zugehoert (Doreens Entscheidung,
+     * 06.09.2026).
+     *
+     * GEMESSEN, warum: Von 14 aufgeschnappten fremden Gespraechen lagen
+     * 11 in einem Kundentermin. Beim Arzt gilt dasselbe - dort wird
+     * Persoenliches gesprochen, und im Wartezimmer sitzen Fremde.
+     *
+     * NICHT dabei: "laden" (dort will sie die Einkaufsliste) und
+     * "zuhause" (sonst waere der Dienst die meiste Zeit taub).
+     */
+    val RUHE_ARTEN = setOf("kunde", "arzt")
 
     private fun prefs(ctx: Context) =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -110,10 +129,46 @@ object Geofence {
      */
     fun zusammenfuehren(eigene: List<Zone>, vomServer: List<Zone>): List<Zone> {
         val namen = eigene.map { it.name.trim().lowercase() }.toSet()
-        return eigene + vomServer.filter {
+        // Die lokale gewinnt bei der POSITION, erbt aber die ART der
+        // gleichnamigen Server-Zone: Sonst verlaere eine vor Ort
+        // nachgetippte Kundenzone ihre Art - und das Zuhoeren wuerde dort
+        // stillschweigend nicht mehr pausieren.
+        val artVomServer = vomServer.associate {
+            it.name.trim().lowercase() to it.art
+        }
+        val ergaenzt = eigene.map {
+            if (it.art.isNotEmpty()) it
+            else it.copy(art = artVomServer[it.name.trim().lowercase()] ?: "")
+        }
+        return ergaenzt + vomServer.filter {
             it.name.trim().lowercase() !in namen
         }
     }
+
+    /**
+     * Der Name der Zone, in der gerade NICHT zugehoert werden soll -
+     * oder null. REINE Funktion, damit der Cloud-Build sie prueft.
+     *
+     * `zustandVon` liefert "drin"/"draussen"/null je Zonenname; im
+     * Betrieb ist das `zustand(ctx, name)`.
+     *
+     * Im Zweifel wird NICHT pausiert: Eine Zone ohne bekannten Zustand
+     * (noch nie gemessen) zaehlt nicht. Ein Dienst, der faelschlich taub
+     * ist, faellt erst auf, wenn sie ihn braucht.
+     */
+    fun ruhezone(zonen: List<Zone>, zustandVon: (String) -> String?): String? =
+        zonen.firstOrNull {
+            it.art in RUHE_ARTEN && zustandVon(it.name) == "drin"
+        }?.name
+
+    /** Dasselbe fuer den laufenden Dienst. */
+    fun ruhezone(ctx: Context): String? =
+        try {
+            ruhezone(zonen(ctx)) { zustand(ctx, it) }
+        } catch (_: Throwable) {
+            // Eine kaputte Zonenliste darf das Lauschen nicht abschalten.
+            null
+        }
 
     /** Nur die hier auf dem Geraet gesetzten. */
     fun lokaleZonen(ctx: Context): List<Zone> = lies(ctx, FELD_ZONEN)
@@ -144,7 +199,8 @@ object Geofence {
                 val name = o.optString("name", "").trim()
                 if (name.isEmpty()) return@mapNotNull null
                 Zone(name, o.optDouble("lat"), o.optDouble("lon"),
-                     o.optInt("radius", RADIUS_STANDARD_M))
+                     o.optInt("radius", RADIUS_STANDARD_M),
+                     o.optString("art", "").trim().lowercase())
             }
         } catch (_: Throwable) {
             emptyList()

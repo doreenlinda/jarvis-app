@@ -374,4 +374,146 @@ class GeofenceTest {
             "Der Zustand wird nicht mehr aus bewerte() uebernommen",
             q.contains("setzeZustand(ctx, zone.name, e.zustand)"))
     }
+
+    // ============================================ Pause bei Kundschaft
+
+    /*
+     * Bei Kundschaft und Aerzten wird nicht zugehoert (Doreens
+     * Entscheidung, 06.09.2026).
+     *
+     * GEMESSEN, warum: Von 14 aufgeschnappten fremden Gespraechen lagen
+     * 11 in einem Kundentermin - gegen ihren Kalender geprueft. Der
+     * Stoppen-Knopf loest das auch, nur muss sie daran denken und danach
+     * wieder einschalten.
+     *
+     * DIE GEGENPROBEN SIND HIER DER WICHTIGERE TEIL: Ein Dienst, der
+     * faelschlich pausiert, ist stumm - und das faellt erst auf, wenn sie
+     * ihn braucht.
+     */
+
+    private fun z(name: String, art: String) =
+        Geofence.Zone(name, 52.4, 13.3, 100, art)
+
+    @Test
+    fun beiKundschaftWirdPausiert() {
+        val zonen = listOf(z("Anja", "kunde"), z("Zuhause", "zuhause"))
+        assertEquals("Anja",
+            Geofence.ruhezone(zonen) { if (it == "Anja") "drin" else "draussen" })
+    }
+
+    @Test
+    fun beimArztWirdPausiert() {
+        val zonen = listOf(z("Dr. Nowak", "arzt"))
+        assertEquals("Dr. Nowak",
+            Geofence.ruhezone(zonen) { "drin" })
+    }
+
+    @Test
+    fun zuhauseWirdNICHTPausiert() {
+        // Sonst waere der Dienst die meiste Zeit taub.
+        assertNull(Geofence.ruhezone(listOf(z("Zuhause", "zuhause"))) { "drin" })
+    }
+
+    @Test
+    fun imLadenWirdNICHTPausiert() {
+        // Dort will sie die Einkaufsliste abrufen.
+        assertNull(Geofence.ruhezone(listOf(z("Denns", "laden"))) { "drin" })
+    }
+
+    @Test
+    fun ausserhalbDerZoneWirdNICHTPausiert() {
+        assertNull(Geofence.ruhezone(listOf(z("Anja", "kunde"))) { "draussen" })
+    }
+
+    @Test
+    fun ohneBekanntenZustandWirdNICHTPausiert() {
+        // Noch nie gemessen: im Zweifel zuhoeren, nicht verstummen.
+        assertNull(Geofence.ruhezone(listOf(z("Anja", "kunde"))) { null })
+    }
+
+    @Test
+    fun eineZoneOhneArtPausiertNicht() {
+        // Selbst gesetzte Zonen haben keine Art - die duerfen den Dienst
+        // nicht stillegen.
+        assertNull(Geofence.ruhezone(listOf(z("Karl", ""))) { "drin" })
+    }
+
+    @Test
+    fun dieArtWirdAusDemServerJsonGelesen() {
+        val zonen = Geofence.ausJson(
+            """[{"name":"Anja","lat":52.4,"lon":13.3,"radius":100,"art":"KUNDE"}]"""
+        )
+        assertEquals(1, zonen.size)
+        // Gross-/Kleinschreibung darf nicht entscheiden, ob pausiert wird.
+        assertEquals("kunde", zonen[0].art)
+    }
+
+    @Test
+    fun ohneArtImJsonBleibtSieLeer() {
+        val zonen = Geofence.ausJson(
+            """[{"name":"Alt","lat":52.4,"lon":13.3,"radius":200}]"""
+        )
+        assertEquals("", zonen[0].art)
+    }
+
+    @Test
+    fun eineVorOrtGetippteZoneErbtDieArtVomServer() {
+        // Sie steht bei einer Kundschaft und tippt die Zone nach, weil die
+        // Adresse fehlte. Ohne das Erben wuerde dort nie pausiert - und
+        // niemandem faellt es auf.
+        val lokal = listOf(Geofence.Zone("Karl", 52.1, 13.1, 100))
+        val server = listOf(z("Karl", "kunde"))
+        val alle = Geofence.zusammenfuehren(lokal, server)
+        assertEquals(1, alle.size)
+        assertEquals("kunde", alle[0].art)
+        // Die POSITION bleibt die lokale - dort stand sie wirklich.
+        assertEquals(52.1, alle[0].lat, 0.0001)
+    }
+
+    @Test
+    fun dasZuhoerenPausiertVorDemMikrofonNichtDanach() {
+        // Das Mikrofon darf gar nicht erst geoeffnet werden - ein bloss
+        // ignorierter Strom liesse das Mikrofon-Symbol beim Kunden
+        // weiterleuchten.
+        val q = File("src/main/java/com/jarvis/app/WakeWordService.kt").readText()
+        val pause = q.indexOf("Geofence.ruhezone(this)")
+        val lauschen = q.indexOf("if (!lauscheBisWeckwort())")
+        assertTrue("Pausenpruefung fehlt", pause > 0)
+        assertTrue("Die Pause muss VOR dem Lauschen stehen", pause < lauschen)
+    }
+
+    @Test
+    fun inDerPauseLaeuftDerDienstWeiter() {
+        // Nur das Zuhoeren setzt aus: Postfach, Aufbruch-Alarm und die
+        // Ortsmessung laufen weiter. Gerade beim Kunden braucht sie den
+        // Alarm, weil der naechste Termin ansteht.
+        val q = File("src/main/java/com/jarvis/app/WakeWordService.kt").readText()
+        val ab = q.indexOf("Geofence.ruhezone(this)")
+        val block = q.substring(ab, minOf(ab + 700, q.length))
+        assertTrue("In der Pause wird der Dienst beendet - dann verliert " +
+            "sie beim Kunden den Aufbruch-Alarm",
+            !block.contains("stopSelf"))
+        assertTrue("Ohne continue liefe die Schleife in das Lauschen weiter",
+            block.contains("continue"))
+    }
+
+    @Test
+    fun auchInDerPauseKommtEinLebenszeichen() {
+        // Die App haelt den Dienst fuer tot, wenn 60 s lang keine
+        // Rueckmeldung kam ("DIENST LAEUFT NICHT - einmal stoppen und neu
+        // aktivieren"). Waehrend der Pause wird deshalb weiter gemeldet,
+        // und der Abstand muss deutlich darunter bleiben - sonst schickt
+        // ein pausierter Dienst sie auf eine Fehlersuche, die es nicht
+        // gibt.
+        val q = File("src/main/java/com/jarvis/app/WakeWordService.kt").readText()
+        val ab = q.indexOf("Geofence.ruhezone(this)")
+        val block = q.substring(ab, minOf(ab + 700, q.length))
+        assertTrue("In der Pause wird kein Status gemeldet",
+            block.contains("meldeStatus"))
+        val zahl = q.substringAfter("PAUSE_PRUEFUNG_MS = ")
+            .substringBefore("L").trim().replace("_", "").toLong()
+        assertTrue("Die Pausenpruefung ist zu selten ($zahl ms) - die App " +
+            "haelt den Dienst dann faelschlich fuer beendet",
+            zahl < 45_000L)
+    }
 }
