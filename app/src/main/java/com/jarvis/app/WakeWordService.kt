@@ -430,7 +430,7 @@ class WakeWordService : Service() {
                     // und die Ortsmessung laufen weiter. Gerade beim
                     // Kunden braucht sie den Alarm, weil der naechste
                     // Termin ansteht.
-                    val ruhe: String? = null   // SABOTAGE
+                    val ruhe = Geofence.ruhezone(this)
                     if (ruhe != null) {
                         meldeStatus("Pausiert bei $ruhe – hier höre ich " +
                             "nicht zu. Sobald Sie weg sind, geht es weiter.")
