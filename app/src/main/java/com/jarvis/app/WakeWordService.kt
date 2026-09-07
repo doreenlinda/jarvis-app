@@ -1084,7 +1084,7 @@ class WakeWordService : Service() {
                     if (++ueberPegel >= NACHFASS_ONSET_BLOECKE) {
                         // Sie spricht: ab hier normale Aufnahme, der Vorlauf
                         // enthaelt die schon gehoerten ersten Silben.
-                        val aufnahme = aufnehmenAusStrom(vorlaufLesen(), mitRueckfrage = true)
+                        val aufnahme = aufnehmenAusStrom(vorlaufLesen())
                         if (aufnahme != null && aufnahme.length() < NACHFASS_MIN_BYTES) {
                             // Zu kurz - war vermutlich ein Geraeusch.
                             return null
