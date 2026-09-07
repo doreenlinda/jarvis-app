@@ -990,7 +990,15 @@ class WakeWordService : Service() {
                         // JARVIS EIGENE STIMME DARF NICHT ALS IHRE FRAGE
                         // ANKOMMEN: Der Mikrofonpuffer hat waehrend des
                         // Abspielens weitergelaufen und wird verworfen.
-                        // SABOTAGE: Puffer bleibt stehen
+                        try {
+                            rec.stop()
+                            rec.startRecording()
+                        } catch (_: Exception) {}
+                        // Auch das Aufgenommene faellt weg - uebrig waere
+                        // nur das Weckwort und eine Pause. Danach enthaelt
+                        // die Datei genau ihre Antwort auf die Rueckfrage,
+                        // ist also kurz und schnell erkannt.
+                        daten.reset()
                         laufzeitMs = 0
                         stilleMs = 0
                     }
@@ -1076,7 +1084,7 @@ class WakeWordService : Service() {
                     if (++ueberPegel >= NACHFASS_ONSET_BLOECKE) {
                         // Sie spricht: ab hier normale Aufnahme, der Vorlauf
                         // enthaelt die schon gehoerten ersten Silben.
-                        val aufnahme = aufnehmenAusStrom(vorlaufLesen())
+                        val aufnahme = aufnehmenAusStrom(vorlaufLesen(), mitRueckfrage = true)
                         if (aufnahme != null && aufnahme.length() < NACHFASS_MIN_BYTES) {
                             // Zu kurz - war vermutlich ein Geraeusch.
                             return null
