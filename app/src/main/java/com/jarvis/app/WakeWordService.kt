@@ -178,6 +178,27 @@ class WakeWordService : Service() {
         private const val PAUSE_PRUEFUNG_MS = 20_000L
 
         private const val AUFNAHME_MAX_MS = 30_000
+        /**
+         * Sagt sie nach dem Weckwort so lange nichts, kommt die kurze
+         * Rueckfrage ("Was WOLLEN Sie.") - LOKAL aus den App-Assets,
+         * ohne Netz, also sofort.
+         *
+         * 1,5 s ist der Kompromiss: lang genug, dass ein in EINEM Zug
+         * gesprochenes "Hey Jarvis, wann ..." sie nie zu hoeren bekommt
+         * (dort liegt schon nach ein bis zwei Bloecken Sprache an), kurz
+         * genug, dass die Luecke nicht als Schweigen empfunden wird.
+         */
+        private const val RUECKFRAGE_NACH_MS = 1_500
+        /**
+         * Und wenn sie auch danach nichts sagt, ist nach dieser Zeit
+         * Schluss - statt der 30 Sekunden aus AUFNAHME_MAX_MS.
+         *
+         * Der Deckel oben ist fuer den umgekehrten Fall gebaut (sie redet
+         * durch, siehe die abgeschnittenen Auftraege vom 27.07.). Wo gar
+         * kein Wort kommt, ist er die falsche Groesse: Das Mikrofon bleibt
+         * eine halbe Minute offen, und am Ende wird nichts gesendet.
+         */
+        private const val OHNE_WORT_ENDE_MS = 6_000
         // NACHFASS-FENSTER (v0.21): So lange bleibt das Mikrofon nach der
         // Antwort offen, damit Doreen ohne erneutes "Hey Jarvis" weiterreden
         // kann. 7 s ist lang genug zum Nachdenken und kurz genug, dass das
@@ -902,7 +923,8 @@ class WakeWordService : Service() {
      * wuerde das Weckwort selbst die Stille-Uhr starten und die Aufnahme
      * abbrechen, waehrend Doreen nach dem Zuruf noch ueberlegt.
      */
-    private fun nimmFrageAufAusStrom(): File? = aufnehmenAusStrom(vorlaufLesen())
+    private fun nimmFrageAufAusStrom(): File? =
+        aufnehmenAusStrom(vorlaufLesen(), mitRueckfrage = true)
 
     /**
      * Der eigentliche Aufnahme-Vorgang auf dem schon offenen Mikrofon.
@@ -910,7 +932,10 @@ class WakeWordService : Service() {
      * beim Nachfass-Fenster die schon gehoerten ersten Worte). Gibt das
      * Mikrofon am Ende frei.
      */
-    private fun aufnehmenAusStrom(vorlauf: ShortArray): File? {
+    private fun aufnehmenAusStrom(
+        vorlauf: ShortArray,
+        mitRueckfrage: Boolean = false,
+    ): File? {
         val rec = audioRecord ?: return null
         val datei = File(cacheDir, "wake_frage.wav")
         return try {
@@ -929,6 +954,7 @@ class WakeWordService : Service() {
             var laufzeitMs = 0
             var stilleMs = 0
             var gesprochen = false
+            var rueckfrageOffen = mitRueckfrage
             while (aktiv && laufzeitMs < AUFNAHME_MAX_MS) {
                 var gelesen = 0
                 while (aktiv && gelesen < block.size) {
@@ -952,6 +978,34 @@ class WakeWordService : Service() {
                     stilleMs += 80
                     if (stilleMs >= STILLE_ENDE_MS) break
                 }
+
+                if (gesprochen) continue
+
+                // Sie hat gerufen und sagt nichts. Erst die Rueckfrage,
+                // dann - wenn weiterhin nichts kommt - Schluss.
+                if (rueckfrageOffen && laufzeitMs >= RUECKFRAGE_NACH_MS) {
+                    rueckfrageOffen = false
+                    meldeStatus("Ich frage nach ...")
+                    if (Rueckfrage.abspielen(this)) {
+                        // JARVIS EIGENE STIMME DARF NICHT ALS IHRE FRAGE
+                        // ANKOMMEN: Der Mikrofonpuffer hat waehrend des
+                        // Abspielens weitergelaufen und wird verworfen.
+                        try {
+                            rec.stop()
+                            rec.startRecording()
+                        } catch (_: Exception) {}
+                        // Auch das Aufgenommene faellt weg - uebrig waere
+                        // nur das Weckwort und eine Pause. Danach enthaelt
+                        // die Datei genau ihre Antwort auf die Rueckfrage,
+                        // ist also kurz und schnell erkannt.
+                        daten.reset()
+                        laufzeitMs = 0
+                        stilleMs = 0
+                    }
+                    meldeStatus("Ich höre Ihre Frage ...")
+                    continue
+                }
+                if (!rueckfrageOffen && laufzeitMs >= OHNE_WORT_ENDE_MS) break
             }
             if (!gesprochen) return null
             datei.writeBytes(alsWav(daten.toByteArray()))
