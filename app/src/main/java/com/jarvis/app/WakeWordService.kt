@@ -990,15 +990,7 @@ class WakeWordService : Service() {
                         // JARVIS EIGENE STIMME DARF NICHT ALS IHRE FRAGE
                         // ANKOMMEN: Der Mikrofonpuffer hat waehrend des
                         // Abspielens weitergelaufen und wird verworfen.
-                        try {
-                            rec.stop()
-                            rec.startRecording()
-                        } catch (_: Exception) {}
-                        // Auch das Aufgenommene faellt weg - uebrig waere
-                        // nur das Weckwort und eine Pause. Danach enthaelt
-                        // die Datei genau ihre Antwort auf die Rueckfrage,
-                        // ist also kurz und schnell erkannt.
-                        daten.reset()
+                        // SABOTAGE: Puffer bleibt stehen
                         laufzeitMs = 0
                         stilleMs = 0
                     }
