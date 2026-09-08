@@ -65,11 +65,7 @@ object Rueckfrage {
      */
     fun dateiFuer(nr: Int, stunde: Int): String? {
         if (nr != BEGRUESSUNG) return "rueckfrage_$nr.mp3"
-        return when {
-            stunde < MORGEN_BIS -> "rueckfrage_8_morgen.mp3"
-            stunde >= ABEND_AB -> "rueckfrage_8_abend.mp3"
-            else -> null
-        }
+        return "rueckfrage_8_morgen.mp3"  // SABOTAGE
     }
 
     /**
