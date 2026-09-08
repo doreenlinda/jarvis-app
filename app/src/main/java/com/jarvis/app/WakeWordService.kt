@@ -892,10 +892,62 @@ class WakeWordService : Service() {
         }
     }
 
-    private fun weckerAusgang() = android.media.AudioAttributes.Builder()
-        .setUsage(android.media.AudioAttributes.USAGE_ALARM)
-        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
-        .build()
+    /**
+     * Haengt gerade ein Bluetooth-Audiogeraet dran (Auto, Kopfhoerer)?
+     *
+     * Danach entscheidet sich, ueber welchen Weg eine DRINGENDE Meldung
+     * ausgegeben wird - siehe weckerAusgang().
+     */
+    private fun ueberBluetooth(): Boolean = try {
+        val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+            it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+        }
+    } catch (_: Throwable) {
+        // Im Zweifel NEIN: Dann bleibt es beim Wecker, und das ist der
+        // Zustand, der zu Hause nachweislich funktioniert.
+        false
+    }
+
+    /**
+     * Der Ausgang fuer DRINGENDE Meldungen - je nach Lage ein anderer.
+     *
+     * ANLASS (08.09.2026, ihre Meldung): "Ich hoere ihn im Auto nicht, er
+     * spricht ganz leise und ich kann das weder uebers Handy noch ueber
+     * die Freisprech lauter machen." Damit war der Aufbruch-Alarm im Auto
+     * praktisch wertlos - also genau dort, wo er gebraucht wird.
+     *
+     * DER GRUND: USAGE_ALARM laeuft ueber den WECKER-Kanal. Dessen
+     * Lautstaerke ist eine eigene, und weder die Tasten am Handy noch der
+     * Regler am Autoradio fassen sie an. Ueber Bluetooth kommt der Ton
+     * zwar an - aber so leise, wie der Weckerkanal gerade steht.
+     *
+     * WARUM NICHT EINFACH IMMER MEDIA: Der Weckerkanal ist seit v0.32
+     * bewusst gewaehlt, weil ihr Handy DAUERHAFT STUMM ist - zu Hause
+     * waere eine Meldung ueber den Medienweg unhoerbar. Beides zugleich
+     * geht nicht, also entscheidet die Lage:
+     *
+     *   Bluetooth verbunden (Auto, Kopfhoerer) -> MEDIA. Dort ist das
+     *       Handy nicht stumm, sondern an einer Anlage, und die
+     *       Lautstaerke ist dort regelbar, wo sie sie erwartet.
+     *   sonst -> ALARM, unveraendert wie bisher.
+     *
+     * Dieselbe Trennung wie in Sprachausgabe.kt seit dem 06.09.2026:
+     * Das ROUTING richtet sich danach, wo der Ton ankommen soll - die
+     * ABSICHT steckt im Fokus-Antrag und bleibt davon unberuehrt.
+     */
+    private fun weckerAusgang(): android.media.AudioAttributes {
+        val usage = if (ueberBluetooth()) {
+            android.media.AudioAttributes.USAGE_MEDIA
+        } else {
+            android.media.AudioAttributes.USAGE_ALARM
+        }
+        return android.media.AudioAttributes.Builder()
+            .setUsage(usage)
+            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
+    }
 
     private fun gibMikrofonFrei() {
         val rec = audioRecord ?: return

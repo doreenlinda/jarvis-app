@@ -177,14 +177,53 @@ class SprachausgabeTest {
             "Der Wecker-Ausgang ist weg - dringende Meldungen waeren bei " +
                 "ihrem (dauerhaft stummen) Handy nicht mehr zu hoeren",
             q.contains("USAGE_ALARM"))
+        // BIS ZUM ENDE der Funktion schneiden, nicht nach einer festen
+        // Zeichenzahl: Die alten 200 Zeichen reichten nach der Erweiterung
+        // vom 08.09.2026 knapp nicht mehr, und der Test waere aus dem
+        // falschen Grund rot geworden.
+        val wecker = q.substringAfter("private fun weckerAusgang()")
+            .substringBefore("private fun gibMikrofonFrei")
         assertTrue("weckerAusgang() nutzt nicht mehr USAGE_ALARM",
-            q.substringAfter("private fun weckerAusgang()")
-                .take(200).contains("USAGE_ALARM"))
+            wecker.contains("USAGE_ALARM"))
         // Die dringende Meldung soll die Musik trotzdem ducken.
         assertTrue(
             "Die dringende Meldung fordert keinen Fokus an - genau sie soll " +
                 "aber in den Vordergrund treten",
             q.substringAfter("private fun spieleDatei(")
                 .take(400).contains("fokusAnfordern"))
+    }
+
+    @Test
+    fun imAutoGehtDieDringendeMeldungUeberDenMedienweg() {
+        // ANLASS (08.09.2026): "Ich hoere ihn im Auto nicht, er spricht ganz
+        // leise und ich kann das weder uebers Handy noch ueber die
+        // Freisprech lauter machen." Der Weckerkanal hat eine EIGENE
+        // Lautstaerke, die keiner ihrer Regler anfasst - der Aufbruch-Alarm
+        // war damit ausgerechnet im Auto praktisch wertlos.
+        val q = lies("WakeWordService.kt")
+        val wecker = q.substringAfter("private fun weckerAusgang()")
+            .substringBefore("private fun gibMikrofonFrei")
+        assertTrue(
+            "Der Ausgang haengt nicht davon ab, ob Bluetooth verbunden ist - " +
+                "im Auto bliebe es beim leisen Weckerkanal",
+            wecker.contains("ueberBluetooth()"))
+        assertTrue(
+            "Bei Bluetooth wird nicht auf den Medienweg umgeschaltet",
+            wecker.contains("USAGE_MEDIA"))
+        // DIE GEGENPROBE, die den Zustand von v0.32 schuetzt: OHNE
+        // Bluetooth MUSS es der Wecker bleiben. Ihr Handy ist dauerhaft
+        // stumm; ueber den Medienweg waere zu Hause NICHTS zu hoeren.
+        val sonst = wecker.substringAfter("} else {").substringBefore("}")
+        assertTrue(
+            "Ohne Bluetooth ist es nicht mehr der Wecker - bei stummem Handy " +
+                "waere die dringende Meldung zu Hause unhoerbar",
+            sonst.contains("USAGE_ALARM"))
+        // Ein Fehler bei der Geraeteabfrage darf nicht dazu fuehren, dass
+        // die Meldung still ausfaellt: im Zweifel Wecker.
+        val bt = q.substringAfter("private fun ueberBluetooth()")
+            .substringBefore("private fun weckerAusgang")
+        assertTrue(
+            "Im Fehlerfall wird nicht auf 'kein Bluetooth' zurueckgefallen",
+            bt.contains("false"))
     }
 }
