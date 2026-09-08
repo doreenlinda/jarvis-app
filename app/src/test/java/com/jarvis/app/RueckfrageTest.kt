@@ -161,20 +161,86 @@ class RueckfrageTest {
     // ---- 5. Assets und Rotation ---------------------------------------
     @Test
     fun esGibtSoVieleDateienWieDasModulErwartet() {
+        // ANGEPASST 09.09.2026 - die ANFORDERUNG ist dieselbe geblieben
+        // ("jeder Platz braucht seine Tondatei"), nur die Zuordnung ist
+        // nicht mehr zu erraten: Platz 8 hat zwei Dateien (Morgen/Abend).
+        // Gefragt wird deshalb dateiFuer statt "rueckfrage_$nr.mp3"
+        // anzunehmen - damit prueft der Test die ECHTE Zuordnung.
         val marke = "val ANZAHL = "
         val i = modul.indexOf(marke)
         assertTrue("ANZAHL fehlt", i >= 0)
         val anzahl = modul.substring(i + marke.length)
             .takeWhile { it.isDigit() }.toInt()
         val ordner = File("src/main/assets")
-        val da = (0 until anzahl).count {
-            val f = File(ordner, "rueckfrage_" + it + ".mp3")
-            f.isFile && f.length() > 5_000
+        val fehlend = mutableListOf<String>()
+        for (nr in 0 until anzahl) {
+            for (stunde in intArrayOf(9, 14, 20)) {
+                val name = Rueckfrage.dateiFuer(nr, stunde) ?: continue
+                val f = File(ordner, name)
+                if (!f.isFile || f.length() <= 5_000) fehlend.add(name)
+            }
         }
         assertEquals(
             "Jede Wendung braucht ihre Tondatei - eine fehlende faellt " +
                 "sonst erst im Alltag auf, und zwar als Schweigen.",
-            anzahl, da
+            emptyList<String>(), fehlend.distinct()
+        )
+    }
+
+    // ---- 6. Die tageszeitabhaengige Begruessung -----------------------
+    //
+    // Doreens Wunsch vom 09.09.2026: "Guten Morgen / Abend Chefin (je nach
+    // Tageszeit)". Sie folgt der Regel, die im Projekt seit dem 06.07.
+    // gilt - dazwischen GAR KEINE Begruessung.
+    @Test
+    fun dieBegruessungFolgtDerTageszeit() {
+        assertEquals("rueckfrage_8_morgen.mp3", Rueckfrage.dateiFuer(8, 9))
+        assertEquals("rueckfrage_8_abend.mp3", Rueckfrage.dateiFuer(8, 20))
+        assertEquals(
+            "Mittags gibt es im Projekt keine Begruessung - dann wird der " +
+                "Platz uebersprungen, statt um drei Uhr nachmittags " +
+                "'Guten Morgen' zu sagen.",
+            null, Rueckfrage.dateiFuer(8, 14)
+        )
+    }
+
+    @Test
+    fun dieGrenzenSitzenWieImRestDesProjekts() {
+        assertEquals("rueckfrage_8_morgen.mp3", Rueckfrage.dateiFuer(8, 10))
+        assertEquals(null, Rueckfrage.dateiFuer(8, 11))
+        assertEquals(null, Rueckfrage.dateiFuer(8, 17))
+        assertEquals("rueckfrage_8_abend.mp3", Rueckfrage.dateiFuer(8, 18))
+        assertEquals("rueckfrage_8_morgen.mp3", Rueckfrage.dateiFuer(8, 0))
+        assertEquals("rueckfrage_8_abend.mp3", Rueckfrage.dateiFuer(8, 23))
+    }
+
+    @Test
+    fun dieUebrigenPlaetzeKennenKeineUhrzeit() {
+        // Gegenprobe: Nur die Begruessung haengt an der Zeit. Wuerde die
+        // Bedingung versehentlich fuer alle gelten, kaeme mittags gar
+        // keine Rueckfrage mehr.
+        for (nr in intArrayOf(0, 4, 7, 9)) {
+            val a = Rueckfrage.dateiFuer(nr, 3)
+            assertEquals(a, Rueckfrage.dateiFuer(nr, 14))
+            assertEquals(a, Rueckfrage.dateiFuer(nr, 22))
+            assertTrue("Platz " + nr + " braucht eine Datei", a != null)
+        }
+    }
+
+    @Test
+    fun einUebersprungenerPlatzKostetKeineRueckfrage() {
+        // Liefert dateiFuer null, muss der Abspielweg einen zweiten Zug
+        // machen - sonst schweigt Jarvis mittags jedes zehnte Mal.
+        val block = abschnitt(modul, "fun abspielen", "private fun naechsteNummer")
+        assertEquals(
+            "Es braucht genau zwei Zuege plus einen Rueckfall - lieber " +
+                "eine Wendung doppelt als gar keine Rueckfrage.",
+            2, block.split("dateiFuer(naechsteNummer").size - 1
+        )
+        assertTrue(
+            "Ohne Rueckfall koennte ein durcheinandergeratener Zaehler " +
+                "die Rueckfrage ganz ausfallen lassen.",
+            block.contains("?: \"rueckfrage_0.mp3\"")
         )
     }
 

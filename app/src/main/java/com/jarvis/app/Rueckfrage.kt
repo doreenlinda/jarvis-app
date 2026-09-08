@@ -2,6 +2,7 @@ package com.jarvis.app
 
 import android.content.Context
 import android.media.MediaPlayer
+import java.util.Calendar
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -32,13 +33,44 @@ import java.util.concurrent.TimeUnit
  *
  * ROTATION: Dieselbe Wendung jedes Mal nutzt sich ab - dieselbe Lektion
  * wie bei der Anrede und den Abschluss-Wendungen.
+ *
+ * STAND 09.09.2026: zehn Plaetze. Doreen hat vier Wendungen ergaenzt
+ * und dabei je drei Hoerproben entschieden - die mit Anrede klingen
+ * bewusst RUHIGER als die uebrigen (ohne Ausrufezeichen, ohne Komma).
+ * Erzeugt werden die Dateien von bau_rueckfragen.py im Orchestrator.
  */
 object Rueckfrage {
 
-    /** So viele Dateien liegen in assets (rueckfrage_0..6.mp3). */
-    private const val ANZAHL = 7
+    /** Rotationsplaetze 0..9. Platz 8 ist die Begruessung (zwei Dateien). */
+    private const val ANZAHL = 10
+    private const val BEGRUESSUNG = 8
+    /** Bis zu dieser Stunde "Guten Morgen", ab ABEND_AB "Guten Abend". */
+    private const val MORGEN_BIS = 11
+    private const val ABEND_AB = 18
     private const val FELD = "rueckfrage_nr"
     private const val PREFS = "jarvis"
+
+    /**
+     * Welche Asset-Datei gehoert zu diesem Platz - oder null zum Ueberspringen.
+     *
+     * REINE FUNKTION MIT ABSICHT, damit der Cloud-Build sie prueft: Kotlin
+     * laesst sich auf dem Laptop nicht ausfuehren, und was hier falsch ist,
+     * faellt sonst erst auf ihrem Handy auf.
+     *
+     * DIE BEGRUESSUNG FOLGT DER REGEL, die im Projekt seit dem 06.07.2026
+     * gilt (persona.txt, _current_time_block): bis 11 Uhr "Guten Morgen",
+     * ab 18 Uhr "Guten Abend", DAZWISCHEN GAR KEINE Begruessung. Mittags
+     * wird der Platz deshalb uebersprungen, statt ein "Guten Morgen" um
+     * drei Uhr nachmittags zu riskieren.
+     */
+    fun dateiFuer(nr: Int, stunde: Int): String? {
+        if (nr != BEGRUESSUNG) return "rueckfrage_$nr.mp3"
+        return when {
+            stunde < MORGEN_BIS -> "rueckfrage_8_morgen.mp3"
+            stunde >= ABEND_AB -> "rueckfrage_8_abend.mp3"
+            else -> null
+        }
+    }
 
     /**
      * Spielt die naechste Rueckfrage ab und wartet, bis sie fertig ist.
@@ -57,11 +89,18 @@ object Rueckfrage {
      * und die Aufnahme laeuft wie bisher weiter.
      */
     fun abspielen(ctx: Context): Boolean {
-        val nr = naechsteNummer(ctx)
+        // Hoechstens EIN Platz kann uebersprungen werden (die Begruessung
+        // ausserhalb ihrer Tageszeit), deshalb genuegt ein zweiter Zug.
+        // Der Rueckfall faengt einen durcheinandergeratenen Zaehler ab -
+        // lieber eine Wendung doppelt als gar keine Rueckfrage.
+        val stunde = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val name = dateiFuer(naechsteNummer(ctx), stunde)
+            ?: dateiFuer(naechsteNummer(ctx), stunde)
+            ?: "rueckfrage_0.mp3"
         var mp: MediaPlayer? = null
         return try {
             Sprachausgabe.fokusAnfordern(ctx)
-            val fd = ctx.assets.openFd("rueckfrage_$nr.mp3")
+            val fd = ctx.assets.openFd(name)
             val fertig = CountDownLatch(1)
             val player = MediaPlayer()
             mp = player
