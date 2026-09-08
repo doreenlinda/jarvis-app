@@ -938,7 +938,7 @@ class WakeWordService : Service() {
      * ABSICHT steckt im Fokus-Antrag und bleibt davon unberuehrt.
      */
     private fun weckerAusgang(): android.media.AudioAttributes {
-        val usage = if (false) {
+        val usage = if (ueberBluetooth()) {
             android.media.AudioAttributes.USAGE_MEDIA
         } else {
             android.media.AudioAttributes.USAGE_ALARM
