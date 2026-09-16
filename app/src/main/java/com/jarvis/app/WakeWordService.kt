@@ -1271,6 +1271,7 @@ class WakeWordService : Service() {
         // Der Orb kann "spricht gerade" NICHT am Statustext ablesen - dort
         // steht weiterhin "Antwort läuft …". Deshalb hier ausdruecklich.
         OrbZustand.spricht(this)
+        val probe = TonProbe.Lauf(TonProbe.QUELLE_WECKWORT)
         try {
             val bytes = Base64.decode(b64, Base64.DEFAULT)
             val tmp = File(cacheDir, "wake_antwort.mp3")
@@ -1280,15 +1281,33 @@ class WakeWordService : Service() {
             val mp = MediaPlayer()
             mp.setAudioAttributes(Sprachausgabe.ATTRIBUTE)
             mp.setDataSource(tmp.absolutePath)
+            probe.uebergeben()
+            // Siehe TonProbe: Ein asynchron gescheiterter Player loest
+            // trotzdem onCompletion aus - ohne diesen Merker zaehlte er als
+            // gespielt, und der Befund waere das Gegenteil der Wahrheit.
+            var fehlgeschlagen = false
             mp.setOnCompletionListener {
+                if (!fehlgeschlagen) probe.gespielt(it)
                 synchronized(fertig) { fertig.notifyAll() }
                 it.release()
+            }
+            // VERHALTENSNEUTRAL (false = nicht behandelt): Android ruft
+            // danach denselben OnCompletionListener auf wie ohne Listener.
+            // Neu ist allein, dass der Fehler nicht mehr spurlos bleibt -
+            // dieser catch-Zweig unten verschluckte ihn bis heute komplett,
+            // nicht einmal die Ausnahme wurde benannt.
+            mp.setOnErrorListener { _, was, extra ->
+                fehlgeschlagen = true
+                probe.gescheitert("abspielen", "what=" + was + " extra=" + extra)
+                false
             }
             mp.prepare()
             mp.start()
             synchronized(fertig) { fertig.wait(120_000) }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            probe.gescheitert("vorbereiten", e.toString())
         } finally {
+            probe.melden(this)
             // finally, nicht am Ende des try: Bricht das Abspielen ab,
             // bliebe der Orb sonst bis zum Ablauf der Hoechstdauer im
             // Sprech-Zustand - und die Musik dauerhaft leise.

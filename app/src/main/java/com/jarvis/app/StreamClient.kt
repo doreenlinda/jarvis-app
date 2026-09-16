@@ -34,7 +34,13 @@ object StreamClient {
     class AudioQueue(
         private val cacheDir: File,
         private val context: Context? = null,
+        quelle: String = TonProbe.QUELLE_STROM,
     ) {
+        // MESSUNG (v0.56) - veraendert am Abspielen NICHTS, sie zaehlt nur
+        // mit. Bis heute war ein gescheiterter Block hier unsichtbar: Der
+        // catch-Zweig unten loescht ihn und macht weiter, ohne dass irgendwo
+        // etwas stuende.
+        private val probe = TonProbe.Lauf(quelle)
         private val warteschlange = ArrayDeque<File>()
         private var spieler: MediaPlayer? = null
         private var laeuft = false
@@ -61,27 +67,46 @@ object StreamClient {
                     // Die Antwort ist vollstaendig gesprochen -
                     // ab hier darf die Musik wieder laut werden.
                     context?.let { Sprachausgabe.fokusFreigeben(it) }
+                    context?.let { probe.melden(it) }
                     fertig.countDown()
                 }
                 return
             }
             laeuft = true
+            probe.uebergeben()
             try {
                 // Musik leiser, solange Jarvis spricht.
                 context?.let { Sprachausgabe.fokusAnfordern(it) }
                 val mp = MediaPlayer()
                 mp.setAudioAttributes(Sprachausgabe.ATTRIBUTE)
                 mp.setDataSource(datei.absolutePath)
+                // Ein Block, der ASYNCHRON scheitert, loest trotzdem
+                // onCompletion aus (siehe Listener darunter). Ohne diesen
+                // Merker wuerde er als "gespielt" gezaehlt - und der Befund
+                // saegte "teilweise abgespielt", wo nichts zu hoeren war.
+                var fehlgeschlagen = false
                 mp.setOnCompletionListener {
+                    if (!fehlgeschlagen) probe.gespielt(it)
                     it.release()
                     datei.delete()
                     starteNaechsten()
+                }
+                // VERHALTENSNEUTRAL: `false` heisst "nicht behandelt" -
+                // Android ruft dann denselben OnCompletionListener auf wie
+                // ohne Listener. Er protokolliert also nur, was ohnehin
+                // passiert waere. Am Audio-Weg wird NICHTS veraendert,
+                // solange die Messung nicht vorliegt.
+                mp.setOnErrorListener { _, was, extra ->
+                    fehlgeschlagen = true
+                    probe.gescheitert("abspielen", "what=" + was + " extra=" + extra)
+                    false
                 }
                 mp.prepare()
                 mp.start()
                 spieler = mp
             } catch (e: Exception) {
                 // Ein kaputter Block darf den Rest nicht aufhalten.
+                probe.gescheitert("vorbereiten", e.toString())
                 datei.delete()
                 starteNaechsten()
             }
@@ -92,7 +117,10 @@ object StreamClient {
         @Synchronized
         fun stromBeendet() {
             stromFertig = true
-            if (!laeuft && warteschlange.isEmpty()) fertig.countDown()
+            if (!laeuft && warteschlange.isEmpty()) {
+                context?.let { probe.melden(it) }
+                fertig.countDown()
+            }
         }
 
         /** Blockiert, bis alles abgespielt ist (fuer den Weckwort-Dienst,
@@ -104,6 +132,7 @@ object StreamClient {
         @Synchronized
         fun abbrechen() {
             context?.let { Sprachausgabe.fokusFreigeben(it) }
+            context?.let { probe.melden(it) }
             try { spieler?.release() } catch (_: Exception) {}
             spieler = null
             warteschlange.forEach { it.delete() }
@@ -194,7 +223,13 @@ object StreamClient {
             .post(body.build())
             .build()
 
-        val queue = AudioQueue(cacheDir, ctx)
+        // Die Quelle unterscheidet Zuruf von Sprechen-Knopf: Nur der
+        // Weckwort-Dienst wartet, bis alles gesprochen ist.
+        val queue = AudioQueue(
+            cacheDir, ctx,
+            if (blockiereBisGesprochen) TonProbe.QUELLE_WECKWORT
+            else TonProbe.QUELLE_KNOPF,
+        )
         var bloecke = 0
         val gesamttext = StringBuilder()
 
