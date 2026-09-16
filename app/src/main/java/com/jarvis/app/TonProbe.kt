@@ -191,6 +191,7 @@ object TonProbe {
         val felder = FormBody.Builder()
             .add("key", key)
             .add("quelle", quelle)
+                .add("transcript", "was sie gesagt hat")
             .add("bloecke", bloecke.toString())
             .add("gespielt", gespielt.toString())
             .add("fehler", fehler.toString())
