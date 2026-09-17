@@ -102,6 +102,10 @@ object StreamClient {
                     false
                 }
                 mp.prepare()
+                // Landet der Ton im framework-internen Nirgendwo (im Auto
+                // gemessen), auf einen echten Ausgang umlenken. Greift NUR
+                // dort - sonst aendert sich nichts.
+                context?.let { probe.umgeleitet(Sprachausgabe.umleitenWennNoetig(mp, it)) }
                 mp.start()
                 spieler = mp
             } catch (e: Exception) {

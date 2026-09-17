@@ -2,8 +2,10 @@ package com.jarvis.app
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.media.MediaPlayer
 
 /**
  * Wie Jarvis' Stimme ausgegeben wird - an EINER Stelle.
@@ -80,6 +82,98 @@ object Sprachausgabe {
         .setUsage(AudioAttributes.USAGE_ASSISTANT)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
+
+    // ----------------------------------------------------------------
+    // Rettung, wenn der Ton im Nirgendwo landet (17.09.2026)
+    // ----------------------------------------------------------------
+    //
+    // ANLASS, Doreens Meldung: "Ich rufe ihn im Auto auf, hoere ihn aber
+    // nicht, obwohl die Musik unterbricht."
+    //
+    // GEMESSEN ueber die Ton-Diagnose, mit ihren Ortszonen abgeglichen:
+    //
+    //   zuhause (08:04, 13:48)   Ausgang  8 = BLUETOOTH_A2DP   -> hoerbar
+    //   im Auto (16:58 - 17:20)  Ausgang 25 = REMOTE_SUBMIX    -> nichts
+    //
+    // Typ 25 ist laut Android-Quelltext "a device type for rerouting audio
+    // within the Android framework between mixes and system applications" -
+    // ein framework-interner Umleitungskanal, KEIN Lautsprecher. Die App
+    // hat dabei alles richtig gemacht: gespielt=2/2, fehler=0. Der Ton ging
+    // raus und verschwand. Dass die Musik trotzdem duckt, passt dazu - das
+    // haengt am FOKUS, und der erreicht das System weiterhin.
+    //
+    // Bei Android Auto uebernimmt Google das Audio-Routing und stellt nur
+    // zugelassene App-Kategorien auf die Autolautsprecher durch; fuer
+    // Assistenten gibt es gar keine Kategorie. Nicht zugelassene Apps
+    // streamen dort bekanntermassen "into nowhere".
+    //
+    // WAS DIESE UMLEITUNG TUT: Landet der Player im Submix, wird er auf
+    // einen ECHTEN Ausgang gelenkt - bevorzugt Bluetooth, also den Weg,
+    // auf dem im Auto auch die Musik laeuft.
+    //
+    // ENG GEFASST, und das ist Absicht: Sie greift NUR bei Typ 25. Ist der
+    // Ausgang normal (zuhause A2DP), passiert nichts. v0.49 hat an genau
+    // dieser Stelle schon einmal den Ton ueber Bluetooth komplett gekostet,
+    // weil eine Aenderung ohne Not alle Faelle traf.
+    //
+    // OB ES TRAEGT, IST OFFEN: Solange Android Auto laeuft, kann es das
+    // Routing an sich ziehen. Der Versuch ist billig, und die Ton-Diagnose
+    // misst danach, was wirklich passiert ist.
+
+    /** Landet dieser Player im framework-internen Nirgendwo? */
+    fun brauchtUmleitung(routedTyp: Int): Boolean =
+        routedTyp == AudioDeviceInfo.TYPE_REMOTE_SUBMIX
+
+    /**
+     * Welcher ECHTE Ausgang stattdessen - REINE Funktion, damit der
+     * Cloud-Build sie ausfuehren kann (Kotlin laesst sich auf dem Laptop
+     * nicht testen; beim Weckwort-Umbau hat genau das drei Fehlversuche
+     * gekostet).
+     *
+     * Bluetooth zuerst, weil das der Weg ins Auto und zu den Kopfhoerern
+     * ist. Der eingebaute Lautsprecher steht am Ende: besser aus dem Handy
+     * gehoert als gar nicht. Virtuelle Ausgaenge scheiden aus - auf einen
+     * zweiten Submix umzuleiten waere sinnlos.
+     */
+    fun echterAusgang(typen: IntArray): Int {
+        val rang = intArrayOf(
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLE_HEADSET,
+            AudioDeviceInfo.TYPE_BLE_SPEAKER,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_USB_DEVICE,
+            AudioDeviceInfo.TYPE_BUS,
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+        )
+        for (t in rang) if (typen.contains(t)) return t
+        return -1
+    }
+
+    /**
+     * Zwischen prepare() und start() aufrufen. Gibt den Typ zurueck, auf
+     * den umgeleitet wurde, sonst -1 (auch wenn gar nichts noetig war).
+     *
+     * Ein Fehlschlag ist folgenlos: Dann bleibt es beim bisherigen Weg -
+     * schlechter als vorher wird es nie.
+     */
+    fun umleitenWennNoetig(mp: MediaPlayer, context: Context): Int = try {
+        val ist = mp.routedDevice?.type ?: -1
+        if (!brauchtUmleitung(ist)) {
+            -1
+        } else {
+            val manager = context.applicationContext
+                .getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val geraete = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            val ziel = echterAusgang(geraete.map { it.type }.toIntArray())
+            val geraet = geraete.firstOrNull { it.type == ziel }
+            if (geraet != null && mp.setPreferredDevice(geraet)) ziel else -1
+        }
+    } catch (_: Throwable) {
+        -1
+    }
 
     private var anfrage: AudioFocusRequest? = null
 

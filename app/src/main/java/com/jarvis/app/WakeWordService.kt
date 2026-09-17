@@ -1302,6 +1302,9 @@ class WakeWordService : Service() {
                 false
             }
             mp.prepare()
+            // Siehe Sprachausgabe: Im Auto landete der Ton in einem
+            // framework-internen Submix statt auf den Lautsprechern.
+            probe.umgeleitet(Sprachausgabe.umleitenWennNoetig(mp, this))
             mp.start()
             synchronized(fertig) { fertig.wait(120_000) }
         } catch (e: Exception) {

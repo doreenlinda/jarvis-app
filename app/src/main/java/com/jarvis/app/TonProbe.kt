@@ -117,12 +117,26 @@ object TonProbe {
         private var fehler = 0
         private var ersterFehler = ""
         private var ausgang = -1
+        private var umgeleitetAuf = -1
         private val beginn = System.currentTimeMillis()
         private var gemeldet = false
 
         @Synchronized
         fun uebergeben() {
             bloecke++
+        }
+
+        /**
+         * Der Ton lag im framework-internen Nirgendwo und wurde auf einen
+         * echten Ausgang gelenkt (siehe Sprachausgabe.umleitenWennNoetig).
+         *
+         * OHNE DIESE MELDUNG WAERE DAS ERGEBNIS NICHT DEUTBAR: Steht danach
+         * ein normaler Ausgang im Protokoll, muss erkennbar sein, ob der
+         * von selbst kam oder ob wir ihn erzwungen haben.
+         */
+        @Synchronized
+        fun umgeleitet(typ: Int) {
+            if (typ >= 0) umgeleitetAuf = typ
         }
 
         @Synchronized
@@ -151,19 +165,26 @@ object TonProbe {
             val f = fehler
             val text = ersterFehler
             var typ = ausgang
+            val umgeleitet = umgeleitetAuf
             thread {
                 try {
                     val manager = ctx.applicationContext
                         .getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    // Die VORHANDENEN Ausgaenge gehoeren immer mit ins
+                    // Protokoll, nicht nur der benutzte: Kommt im Auto
+                    // wieder nichts an, ist die entscheidende Frage, ob
+                    // ueberhaupt ein echter Ausgang zur Wahl stand. Ohne
+                    // diese Liste ist "es ging nicht" nicht deutbar.
+                    val vorhanden = manager
+                        .getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                        .map { it.type }.toIntArray()
                     if (typ < 0) {
-                        val vorhanden = manager
-                            .getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                            .map { it.type }.toIntArray()
                         typ = massgeblicherAusgang(vorhanden)
                     }
                     val laut = manager.getStreamVolume(AudioManager.STREAM_MUSIC)
                     val maxLaut = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                    senden(ctx, quelle, b, g, f, text, typ, laut, maxLaut, dauer)
+                    senden(ctx, quelle, b, g, f, text, typ, laut, maxLaut, dauer,
+                           umgeleitet, vorhanden)
                 } catch (_: Throwable) {
                     // Schlaegt die Messung fehl, ist das folgenlos - sie
                     // ist eine Beobachtung, kein Bestandteil der Antwort.
@@ -182,7 +203,7 @@ object TonProbe {
     private fun senden(
         ctx: Context, quelle: String, bloecke: Int, gespielt: Int,
         fehler: Int, fehlertext: String, ausgang: Int, laut: Int,
-        maxLaut: Int, dauerMs: Long,
+        maxLaut: Int, dauerMs: Long, umgeleitet: Int, vorhanden: IntArray,
     ) {
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val basis = (prefs.getString("url", "") ?: "").trim().trimEnd('/')
@@ -199,6 +220,8 @@ object TonProbe {
             .add("lautstaerke", laut.toString())
             .add("max_lautstaerke", maxLaut.toString())
             .add("dauer_ms", dauerMs.toString())
+            .add("umgeleitet", if (umgeleitet >= 0) umgeleitet.toString() else "")
+            .add("vorhanden", vorhanden.joinToString(","))
             .build()
         client.newCall(
             Request.Builder()
