@@ -68,20 +68,30 @@ object Sprachausgabe {
      * Das Ducking haengt am FOKUS-Antrag, nicht an der Usage des
      * Players - ihr eigentliches Ziel bleibt damit erhalten.
      */
-    val ATTRIBUTE: AudioAttributes = AudioAttributes.Builder()
-        .setUsage(AudioAttributes.USAGE_MEDIA)
-        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-        .build()
+    // `by lazy`, damit diese Klasse OHNE Android-Laufzeit ladbar ist:
+    // AudioAttributes.Builder() ist im Unit-Test nur eine Attrappe, die
+    // wirft. Als Feld auf Objektebene scheiterte damit die gesamte
+    // Klasseninitialisierung (ExceptionInInitializerError) - und die
+    // reinen Auswahl-Funktionen darunter waeren nicht pruefbar gewesen.
+    // Im Betrieb identisch: Die Attribute entstehen beim ersten Zugriff.
+    val ATTRIBUTE: AudioAttributes by lazy {
+        AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
+    }
 
     /**
      * NUR fuer den Fokus-Antrag - hierueber fliesst kein Ton, es ist die
      * Absichtserklaerung an das System. Deshalb darf sie ASSISTANT
      * bleiben, ohne das Routing zu beruehren.
      */
-    private val FOKUS_ATTRIBUTE: AudioAttributes = AudioAttributes.Builder()
-        .setUsage(AudioAttributes.USAGE_ASSISTANT)
-        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-        .build()
+    private val FOKUS_ATTRIBUTE: AudioAttributes by lazy {
+        AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANT)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
+    }
 
     // ----------------------------------------------------------------
     // Rettung, wenn der Ton im Nirgendwo landet (17.09.2026)
