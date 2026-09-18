@@ -93,6 +93,20 @@ class MikroProbeTest {
             "Die abgelesene Quelle wird nicht an die Messung weitergereicht.",
             s.contains("quelle = quelle")
         )
+        // EHRLICHE GRENZE: Das ist eine QUELLTEXT-Pruefung. AudioRecord
+        // laesst sich im Unit-Test nicht ausfuehren, ein echter
+        // Ablauftest ist also unmoeglich. Sie faengt das versehentliche
+        // Verschieben beim Umbau - die realistische Gefahr -, aber nicht
+        // jede absichtliche Aushebelung.
+        //
+        // Beim Sabotagelauf am 18.09.2026 blieb sie gruen, als die
+        // Bedingung auf "if (false)" gesetzt wurde: Der Text stand ja
+        // weiterhin da. Deshalb wird die Bedingung SELBST geprueft.
+        assertTrue(
+            "Der Ableseblock haengt nicht mehr an (quelle < 0) - so " +
+                "wird nie abgelesen, und die Messung ist blind.",
+            s.contains("if (quelle < 0) {")
+        )
     }
 
     @Test
