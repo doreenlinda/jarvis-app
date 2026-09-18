@@ -1,6 +1,7 @@
 package com.jarvis.app
 
 import android.content.Context
+import android.media.AudioManager
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -81,10 +82,22 @@ object MikroProbe {
      * @param graubereich  Bloecke ueber der halben Schwelle, aber darunter -
      *                   "da war etwas, nur zu leise"
      */
+    /**
+     * WER HAT DAS MIKROFON (ab v0.59)
+     *
+     * @param quelle  Der Typ des Eingabegeraets, ueber das WIRKLICH
+     *   aufgenommen wurde (AudioDeviceInfo.TYPE_*), oder -1.
+     *
+     *   DER ZEITPUNKT IST HIER ALLES: `getRoutedDevice()` liefert nur
+     *   waehrend der laufenden Aufnahme einen Wert. Deshalb wird er aus der
+     *   Aufnahmeschleife hereingereicht und NICHT hier geholt - genau
+     *   dieser Fehler hat die Ton-Umleitung aus v0.57 wirkungslos gemacht
+     *   (sie fragte VOR dem Start und merkte nie, dass sie umleiten muss).
+     */
     fun melde(
         ctx: Context, anlass: String, gesprochen: Boolean, maxPegel: Int,
         schnitt: Int, bloecke: Int, graubereich: Int, schwelle: Int,
-        dauerMs: Long,
+        dauerMs: Long, quelle: Int = -1,
     ) {
         thread {
             try {
@@ -92,6 +105,24 @@ object MikroProbe {
                 val basis = (prefs.getString("url", "") ?: "").trim().trimEnd('/')
                 val key = prefs.getString("key", "") ?: ""
                 if (basis.isEmpty() || key.isEmpty()) return@thread
+                // Die vorhandenen EINGAENGE und der Audiomodus kommen erst
+                // hier dazu - sie aendern sich waehrend einer Aufnahme
+                // nicht, und der Aufruf gehoert nicht in die Schleife.
+                var vorhanden = ""
+                var modus = ""
+                try {
+                    val manager = ctx.applicationContext
+                        .getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    vorhanden = manager
+                        .getDevices(AudioManager.GET_DEVICES_INPUTS)
+                        .map { it.type }.distinct().joinToString(",")
+                    // Steht hier IM ANRUF, hat die Telefonie das Mikrofon -
+                    // der direkte Beleg fuer die Freisprecheinrichtung.
+                    modus = manager.mode.toString()
+                } catch (_: Throwable) {
+                    // Dann fehlen die zwei Felder eben; der Pegel ist
+                    // wichtiger als sie.
+                }
                 val felder = FormBody.Builder()
                     .add("key", key)
                     .add("anlass", anlass)
@@ -104,6 +135,13 @@ object MikroProbe {
                     // verstellt, deutet das Protokoll sonst still falsch.
                     .add("schwelle", schwelle.toString())
                     .add("dauer_ms", dauerMs.toString())
+                    // Leere Felder statt "-1": Der Server soll "nicht
+                    // gemeldet" von "unbekanntes Geraet" unterscheiden
+                    // koennen, sonst steht in der Zeile eine erfundene
+                    // Angabe.
+                    .add("quelle", if (quelle >= 0) quelle.toString() else "")
+                    .add("verfuegbar", vorhanden)
+                    .add("modus", modus)
                     .build()
                 client.newCall(
                     Request.Builder()

@@ -65,6 +65,53 @@ class MikroProbeTest {
     }
 
     @Test
+    fun dieQuelleWirdInDerAufnahmeschleifeAbgelesen() {
+        // WER HAT DAS MIKROFON (v0.59): getRoutedDevice() liefert nur
+        // WAEHREND der laufenden Aufnahme einen Wert. Rutscht das Ablesen
+        // hinter die Schleife, steht im Protokoll dauerhaft nichts - und
+        // die Messung ist blind, ohne dass es auffaellt.
+        //
+        // Genau dieser Zeitpunkt-Fehler hat die Ton-Umleitung aus v0.57
+        // wirkungslos gemacht: Sie fragte VOR dem Start.
+        val s = dienst()
+        val lesen = s.indexOf("rec.routedDevice")
+        val schleife = s.indexOf("while (aktiv && laufzeitMs < AUFNAHME_MAX_MS)")
+        // Die LETZTE Anweisung der Schleife als Grenze. Ohne sie wuerde nur
+        // die Reihenfolge dreier Textstellen geprueft - und die stimmt auch
+        // dann noch, wenn der Block hinter die Schleife wandert. Genau das
+        // ist beim Sabotagelauf am 18.09.2026 passiert.
+        val ende = s.indexOf("if (!rueckfrageOffen && laufzeitMs >= OHNE_WORT_ENDE_MS)")
+        assertTrue("Die Aufnahmequelle wird nirgends abgelesen.", lesen > 0)
+        assertTrue("Schleifenanfang oder -ende nicht gefunden.",
+            schleife > 0 && ende > 0)
+        assertTrue(
+            "Die Quelle wird NICHT innerhalb der Aufnahmeschleife " +
+                "abgelesen - getRoutedDevice liefert dann nichts.",
+            schleife < lesen && lesen < ende
+        )
+        assertTrue(
+            "Die abgelesene Quelle wird nicht an die Messung weitergereicht.",
+            s.contains("quelle = quelle")
+        )
+    }
+
+    @Test
+    fun fehlendeAngabenWerdenNichtErfunden() {
+        // Ein leeres Feld statt "-1": Der Server soll "nicht gemeldet" von
+        // "unbekanntes Geraet" unterscheiden koennen. Sonst steht in genau
+        // der Zeile, an der sich alles entscheidet, eine erfundene Angabe.
+        val p = probe()
+        assertTrue(
+            "Die Quelle wird auch dann gesendet, wenn sie unbekannt ist.",
+            p.contains("if (quelle >= 0) quelle.toString() else")
+        )
+        assertTrue(
+            "Scheitert die Geraeteabfrage, muss der Pegel trotzdem raus.",
+            p.contains("var vorhanden = ")
+        )
+    }
+
+    @Test
     fun beideFaelleWerdenGemeldet() {
         // Der Aufruf darf nicht in einem "if (gesprochen)" haengen: Ohne
         // den Nenner ist die Zahl der Fehlschlaege wertlos.

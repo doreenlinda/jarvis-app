@@ -1015,8 +1015,27 @@ class WakeWordService : Service() {
             var summePegel = 0L
             var pegelBloecke = 0
             var graubereich = 0
+            // WER HAT DAS MIKROFON (v0.59): Der Pegel allein sagt nicht,
+            // WORAN es liegt. Ist die Quelle das Bluetooth-Anrufprofil, hat
+            // die Freisprecheinrichtung es an sich gezogen; ist es das
+            // eingebaute Mikrofon und der Pegel trotzdem niedrig, liegt es
+            // an Abstand und Fahrgeraeusch. Das verlangt entgegengesetzte
+            // Antworten - deshalb gemessen statt geraten.
+            //
+            // ABGELESEN WIRD IN DER SCHLEIFE, NICHT DANACH:
+            // getRoutedDevice() liefert nur waehrend der laufenden Aufnahme
+            // einen Wert. Genau dieser Zeitpunkt-Fehler hat die
+            // Ton-Umleitung aus v0.57 wirkungslos gemacht - sie fragte VOR
+            // dem Start und merkte deshalb nie, dass sie umleiten muesste.
+            var quelle = -1
             val beginnMs = System.currentTimeMillis()
             while (aktiv && laufzeitMs < AUFNAHME_MAX_MS) {
+                if (quelle < 0) {
+                    // Kostet einen Feldzugriff je Block, bis es einmal
+                    // geklappt hat - danach nie wieder.
+                    quelle = try { rec.routedDevice?.type ?: -1 }
+                             catch (_: Throwable) { -1 }
+                }
                 var gelesen = 0
                 while (aktiv && gelesen < block.size) {
                     val n = rec.read(block, gelesen, block.size - gelesen)
@@ -1092,6 +1111,7 @@ class WakeWordService : Service() {
                 graubereich = graubereich,
                 schwelle = SPRACH_PEGEL,
                 dauerMs = System.currentTimeMillis() - beginnMs,
+                quelle = quelle,
             )
             if (!gesprochen) return null
             datei.writeBytes(alsWav(daten.toByteArray()))
