@@ -1030,7 +1030,7 @@ class WakeWordService : Service() {
             var quelle = -1
             val beginnMs = System.currentTimeMillis()
             while (aktiv && laufzeitMs < AUFNAHME_MAX_MS) {
-                if (false) {
+                if (quelle < 0) {
                     // Kostet einen Feldzugriff je Block, bis es einmal
                     // geklappt hat - danach nie wieder.
                     quelle = try { rec.routedDevice?.type ?: -1 }
