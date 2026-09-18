@@ -1007,6 +1007,15 @@ class WakeWordService : Service() {
             var stilleMs = 0
             var gesprochen = false
             var rueckfrageOffen = mitRueckfrage
+            // MESSUNG (v0.58) - veraendert nichts, zaehlt nur mit. Ohne
+            // diese Zahlen ist "Keine Frage gehoert" nicht deutbar: Die
+            // Pegel-Anzeige laeuft nur beim Lauschen, und beim Fahren kann
+            // Doreen ohnehin nichts ablesen.
+            var maxPegel = 0
+            var summePegel = 0L
+            var pegelBloecke = 0
+            var graubereich = 0
+            val beginnMs = System.currentTimeMillis()
             while (aktiv && laufzeitMs < AUFNAHME_MAX_MS) {
                 var gelesen = 0
                 while (aktiv && gelesen < block.size) {
@@ -1023,6 +1032,13 @@ class WakeWordService : Service() {
                     val a = if (s >= 0) s.toInt() else -s.toInt()
                     if (a > pegel) pegel = a
                 }
+                if (pegel > maxPegel) maxPegel = pegel
+                summePegel += pegel
+                pegelBloecke++
+                // "Da war etwas, nur zu leise": Liegt der Hoechstwert auch
+                // darunter, haette eine niedrigere Schwelle nichts gerettet.
+                if (pegel > SPRACH_PEGEL / 2 && pegel <= SPRACH_PEGEL) graubereich++
+
                 if (pegel > SPRACH_PEGEL) {
                     gesprochen = true
                     stilleMs = 0
@@ -1053,12 +1069,30 @@ class WakeWordService : Service() {
                         daten.reset()
                         laufzeitMs = 0
                         stilleMs = 0
+                        // Auch die Messung faengt von vorn an: Gemessen
+                        // werden soll ihre ANTWORT auf die Rueckfrage,
+                        // nicht die Stille davor.
+                        maxPegel = 0
+                        summePegel = 0L
+                        pegelBloecke = 0
+                        graubereich = 0
                     }
                     meldeStatus("Ich höre Ihre Frage ...")
                     continue
                 }
                 if (!rueckfrageOffen && laufzeitMs >= OHNE_WORT_ENDE_MS) break
             }
+            MikroProbe.melde(
+                this,
+                anlass = if (mitRueckfrage) "weckwort" else "nachfass",
+                gesprochen = gesprochen,
+                maxPegel = maxPegel,
+                schnitt = if (pegelBloecke > 0) (summePegel / pegelBloecke).toInt() else -1,
+                bloecke = pegelBloecke,
+                graubereich = graubereich,
+                schwelle = SPRACH_PEGEL,
+                dauerMs = System.currentTimeMillis() - beginnMs,
+            )
             if (!gesprochen) return null
             datei.writeBytes(alsWav(daten.toByteArray()))
             datei
