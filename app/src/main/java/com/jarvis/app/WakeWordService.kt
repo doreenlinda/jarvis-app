@@ -1082,8 +1082,6 @@ class WakeWordService : Service() {
                 }
                 if (!rueckfrageOffen && laufzeitMs >= OHNE_WORT_ENDE_MS) break
             }
-            if (!gesprochen) return null
-            datei.writeBytes(alsWav(daten.toByteArray()))
             MikroProbe.melde(
                 this,
                 anlass = if (mitRueckfrage) "weckwort" else "nachfass",
@@ -1095,6 +1093,8 @@ class WakeWordService : Service() {
                 schwelle = SPRACH_PEGEL,
                 dauerMs = System.currentTimeMillis() - beginnMs,
             )
+            if (!gesprochen) return null
+            datei.writeBytes(alsWav(daten.toByteArray()))
             datei
         } catch (e: Exception) {
             meldeStatus("FEHLER bei der Aufnahme: $e")
