@@ -46,7 +46,7 @@ object Navigation {
         for (paket in listOf(MAPS, "")) {
             try {
                 val i = Intent(Intent.ACTION_VIEW, uri)
-
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (paket.isNotEmpty()) i.setPackage(paket)
                 ctx.startActivity(i)
                 Log.i("Jarvis", "Navigation gestartet: $ziel")
