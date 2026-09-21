@@ -320,6 +320,28 @@ object StreamClient {
                                 // ein behaupteter Erfolg.
                             }
                         }
+                        // ZIELFUEHRUNG STARTEN (v0.60). Wie beim
+                        // WhatsApp-Versand kann der Server nicht selbst
+                        // handeln - Maps oeffnet sich hier.
+                        //
+                        // Anders als dort wird NICHT auf eine Rueckmeldung
+                        // gewartet: Ob Maps aufgeht, sieht sie in derselben
+                        // Sekunde auf dem Bildschirm. Ein Warten waere
+                        // Latenz ohne Erkenntnisgewinn - und der Strom
+                        // stuende so lange still.
+                        "navigation" -> {
+                            try {
+                                Navigation.starten(
+                                    ctx,
+                                    ev.optString("ziel", ""),
+                                    ev.optString("abfrage", "")
+                                )
+                            } catch (_: Throwable) {
+                                // Ein Fehler darf die restliche Antwort
+                                // nicht abschneiden - sie soll zu Ende
+                                // hoeren, auch wenn Maps nicht aufgeht.
+                            }
+                        }
                         "done" -> {
                             val voll = ev.optString("text", "")
                             if (voll.isNotEmpty()) onText(voll)
