@@ -47,6 +47,6 @@ object Gespraech {
     fun weiterhoeren(bisherigeNachfragen: Int, gespraechOffen: Boolean): Boolean {
         if (bisherigeNachfragen <= 0) return true
         if (bisherigeNachfragen >= MAX_NACHFRAGEN) return false
-        return gespraechOffen
+        return false
     }
 }
