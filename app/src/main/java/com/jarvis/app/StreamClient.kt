@@ -171,6 +171,10 @@ object StreamClient {
          *  Server nimmt dann ortsbezogene Fragen auf DIESEN Ort statt
          *  nachzufragen. */
         standort: String = "",
+        /** v0.61: Meldet, ob der Server das Gespraech fuer offen haelt
+         *  ("gespraech_offen" in der done-Zeile). Fehlt das Feld, kommt
+         *  false - aeltere Server verhalten sich damit wie vor v0.61. */
+        onGespraechOffen: (Boolean) -> Unit = {},
         onTranscript: (String) -> Unit = {},
         onText: (String) -> Unit = {},
     ): Boolean {
@@ -345,6 +349,7 @@ object StreamClient {
                         "done" -> {
                             val voll = ev.optString("text", "")
                             if (voll.isNotEmpty()) onText(voll)
+                            onGespraechOffen(ev.optBoolean("gespraech_offen", false))
                         }
                         "error" -> {
                             // Nur wenn noch NICHTS ankam, lohnt der Rueckfall.

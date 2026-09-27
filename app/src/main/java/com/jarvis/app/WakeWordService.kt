@@ -522,13 +522,21 @@ class WakeWordService : Service() {
                     // Die schnelle Rueckfrage bleibt erhalten - genau dafuer
                     // wollte sie das Fenster -, aber die Kette ist an der
                     // Wurzel gekappt: Danach braucht es wieder "Hey Jarvis".
-                    var ausNachfass = false
+                    //
+                    // v0.61 (27.09.2026, ihr Wunsch nach einem fliessenden
+                    // Gespraech): Die Kette laeuft weiter, solange der Server
+                    // das Gespraech fuer offen haelt - sie endet bei der
+                    // ersten ratlosen Antwort (das Bild eines Raumgespraechs)
+                    // und spaetestens nach Gespraech.MAX_NACHFRAGEN. Die
+                    // Entscheidung steht in Gespraech.weiterhoeren.
+                    var nachfragen = 0
                     while (aktiv && frage != null && frage.length() > 0) {
                         ton(ToneGenerator.TONE_PROP_ACK)
                         meldeStatus("Frage aufgenommen, sende an Jarvis …")
-                        frageJarvis(frage, ausNachfass)
-                        frage = if (aktiv && !ausNachfass) nachfassFenster() else null
-                        ausNachfass = true
+                        val offen = frageJarvis(frage, nachfragen > 0)
+                        frage = if (aktiv && Gespraech.weiterhoeren(nachfragen, offen))
+                            nachfassFenster() else null
+                        nachfragen++
                     }
                     // Puffer leeren, damit die eigene Aufnahme/Stimme keinen
                     // Fehlalarm hinterlaesst; danach lauscht die Schleife weiter.
@@ -1231,11 +1239,13 @@ class WakeWordService : Service() {
 
     /** Schickt die Aufnahme an /assistant - gleiche Retry-/Idempotenz-Logik
      *  wie der Sprechen-Knopf in der App. */
-    private fun frageJarvis(audio: File, ausNachfass: Boolean = false) {
+    /** @return ob der Server das Gespraech fuer offen haelt (v0.61) -
+     *  im Zweifel false, dann braucht es wieder "Hey Jarvis". */
+    private fun frageJarvis(audio: File, ausNachfass: Boolean = false): Boolean {
         val prefs = getSharedPreferences("jarvis", Context.MODE_PRIVATE)
         val base = (prefs.getString("url", "") ?: "").trim().trimEnd('/')
         val key = prefs.getString("key", "") ?: ""
-        if (base.isEmpty() || key.isEmpty()) return
+        if (base.isEmpty() || key.isEmpty()) return false
 
         // Satzweise Antwort (siehe StreamClient): Jarvis spricht los, sobald
         // der erste Satz steht. blockiereBisGesprochen=true, weil erst NACH
@@ -1248,6 +1258,7 @@ class WakeWordService : Service() {
         val ort = Standort.text(this)
 
         meldeStatus("Frage gesendet – Antwort läuft …")
+        var offen = false
         try {
             val gestreamt = StreamClient.ask(
                 ctx = this, client = client, base = base, key = key,
@@ -1255,8 +1266,9 @@ class WakeWordService : Service() {
                 blockiereBisGesprochen = true,
                 stillBeiUnverstanden = ausNachfass,
                 standort = ort,
+                onGespraechOffen = { offen = it },
             )
-            if (gestreamt) return
+            if (gestreamt) return offen
         } catch (t: Throwable) {
             meldeStatus("Stream fehlgeschlagen, versuche klassisch …")
         }
@@ -1292,20 +1304,21 @@ class WakeWordService : Service() {
                 client.newCall(request).execute().use { resp ->
                     if (!resp.isSuccessful) {
                         ton(ToneGenerator.TONE_SUP_ERROR)
-                        return
+                        return false
                     }
                     val json = Krypto.auspacken(this, JSONObject(resp.body?.string() ?: "{}"))
                     // Gleiche Regel wie im Strom: Ein "nichts verstanden" aus
                     // dem Nachfass-Fenster bleibt still.
                     if (json.optString("anlass") == "nichts_verstanden" && ausNachfass) {
                         meldeStatus("Nichts verstanden (Nachfass) – ich lausche weiter.")
-                        return
+                        return false
                     }
+                    offen = json.optBoolean("gespraech_offen", false)
                     val audioB64 = if (json.isNull("audio_base64")) null
                                    else json.optString("audio_base64", null)
                     if (audioB64 != null) spieleAntwort(audioB64)
                 }
-                return
+                return offen
             } catch (e: IOException) {
                 // Kurzer Netz-/VPN-Aussetzer: warten und mit derselben
                 // request_id erneut - der Server liefert dann die schon
@@ -1314,9 +1327,10 @@ class WakeWordService : Service() {
                 else Thread.sleep(2500)
             } catch (e: Exception) {
                 ton(ToneGenerator.TONE_SUP_ERROR)
-                return
+                return false
             }
         }
+        return false
     }
 
     /** Spielt die Antwort ab und BLOCKIERT bis zum Ende - erst danach wird
