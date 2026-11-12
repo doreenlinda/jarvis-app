@@ -55,7 +55,6 @@ object Navigation {
         // Mitteilung auf dem Sperrbildschirm: antippen, entsperren, Maps
         // startet die Zielfuehrung. Der direkte Versuch unten laeuft
         // trotzdem - laesst ein Geraet ihn durch, ist Maps schon da.
-        if (gesperrt(ctx)) alsMitteilung(ctx, ziel, uri)
         var letzter = ""
         for (paket in listOf(MAPS, "")) {
             try {
