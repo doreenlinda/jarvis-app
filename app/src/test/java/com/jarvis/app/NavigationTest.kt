@@ -136,4 +136,80 @@ class NavigationTest {
             block.contains("try {") && block.contains("catch")
         )
     }
+
+    // --- v0.63: gesperrtes Handy (Livefall 12.11.2026) -------------------
+    // Android blockiert den Start von Maps bei gesperrtem Bildschirm STILL.
+
+    /** Der Rumpf von alsMitteilung, ohne Kommentare. */
+    private fun mitteilungsBlock(): String {
+        val code = codeVon(navigation)
+        val ab = code.indexOf("private fun alsMitteilung")
+        assertTrue("alsMitteilung fehlt", ab >= 0)
+        return code.substring(ab)
+    }
+
+    @Test
+    fun gesperrtGibtEsEineMitteilung() {
+        val code = codeVon(navigation)
+        assertTrue(
+            "Ohne Pruefung auf den Sperrbildschirm bleibt Maps im Auto zu",
+            code.contains("isKeyguardLocked")
+        )
+        assertTrue(
+            "starten() muss bei gesperrtem Handy die Mitteilung legen",
+            code.contains("if (gesperrt(ctx)) alsMitteilung(")
+        )
+    }
+
+    @Test
+    fun derDirekteVersuchBleibt() {
+        // Entsperrt geht Maps wie bisher sofort auf - die Mitteilung kommt
+        // HINZU, sie ersetzt den Start nicht.
+        val code = codeVon(navigation)
+        val mitteilung = code.indexOf("if (gesperrt(ctx)) alsMitteilung(")
+        val direkt = code.indexOf("ctx.startActivity(i)")
+        assertTrue(
+            "Nach der Mitteilung muss der direkte Start weiterlaufen",
+            mitteilung >= 0 && direkt > mitteilung
+        )
+    }
+
+    @Test
+    fun antippenStartetMapsDirekt() {
+        val block = mitteilungsBlock()
+        assertTrue(
+            "Die Mitteilung muss Maps selbst oeffnen, nicht die Jarvis-App",
+            block.contains("PendingIntent.getActivity") &&
+                block.contains("setPackage(MAPS)") &&
+                block.contains("setContentIntent(antippen)")
+        )
+        assertTrue(
+            "Ohne FLAG_IMMUTABLE wirft Android 12+ beim Anlegen",
+            block.contains("FLAG_IMMUTABLE")
+        )
+    }
+
+    @Test
+    fun sichtbarAufDemSperrbildschirm() {
+        assertTrue(
+            "Nur ein Kanal mit hoher Wichtigkeit erscheint als Kopfzeile",
+            mitteilungsBlock().contains("IMPORTANCE_HIGH")
+        )
+    }
+
+    @Test
+    fun keinKundinnenNameAufDemSperrbildschirm() {
+        val block = mitteilungsBlock()
+        assertTrue(
+            "Privat + oeffentliche Fassung, sonst steht der Name auf dem Display",
+            block.contains("VISIBILITY_PRIVATE") && block.contains("setPublicVersion(oeffentlich)")
+        )
+        val ab = block.indexOf("val oeffentlich")
+        val bis = block.indexOf(".build()", ab)
+        assertTrue("oeffentliche Fassung fehlt", ab >= 0 && bis > ab)
+        assertTrue(
+            "Die oeffentliche Fassung darf das Ziel nicht nennen",
+            !block.substring(ab, bis).contains("\$ziel")
+        )
+    }
 }
