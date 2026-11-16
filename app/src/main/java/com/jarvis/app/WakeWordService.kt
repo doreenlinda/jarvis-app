@@ -647,7 +647,7 @@ class WakeWordService : Service() {
                 // (v0.64, Anlass Karl & Inge 16.11.): Mikrofon freigeben
                 // (finally unten) und zurueck in die Hauptschleife - die
                 // prueft die Zone selbst und pausiert dort.
-                val angekommen = Geofence.ruheWaehrendLauschen(0 * ++bloeckeGesamt) {
+                val angekommen = Geofence.ruheWaehrendLauschen(++bloeckeGesamt) {
                     Geofence.ruhezone(this)
                 }
                 if (angekommen != null) {
