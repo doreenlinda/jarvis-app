@@ -627,6 +627,9 @@ class WakeWordService : Service() {
         // Beim Treffer bleibt das Mikrofon OFFEN, damit die Frage ohne
         // Rekorderwechsel aus demselben Strom weiterlaufen kann (v0.19).
         var erkannt = false
+        // Zaehlt alle Bloecke dieses Lauschens (nicht zurueckgesetzt) - fuer
+        // die Zonenpruefung alle ~10 s (v0.64, siehe Geofence.RUHE_PRUEF_BLOECKE).
+        var bloeckeGesamt = 0
         vorlaufLeeren()
         try {
             while (aktiv) {
@@ -640,6 +643,17 @@ class WakeWordService : Service() {
                     gelesen += n
                 }
                 if (!aktiv) return false
+                // Bei Kundschaft/Arzt angekommen, WAEHREND gelauscht wird
+                // (v0.64, Anlass Karl & Inge 16.11.): Mikrofon freigeben
+                // (finally unten) und zurueck in die Hauptschleife - die
+                // prueft die Zone selbst und pausiert dort.
+                val angekommen = Geofence.ruheWaehrendLauschen(++bloeckeGesamt) {
+                    Geofence.ruhezone(this)
+                }
+                if (angekommen != null) {
+                    meldeStatus("Bei $angekommen angekommen – ich höre ab jetzt nicht zu.")
+                    return false
+                }
                 // Mitschreiben, BEVOR bewertet wird: Faellt das Weckwort in
                 // diesem Block, gehoert er selbst schon zum Vorlauf.
                 vorlaufSchreiben(block)

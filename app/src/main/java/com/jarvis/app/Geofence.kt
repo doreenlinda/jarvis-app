@@ -161,6 +161,29 @@ object Geofence {
             it.art in RUHE_ARTEN && zustandVon(it.name) == "drin"
         }?.name
 
+    /**
+     * Alle wie viele Weckwort-Bloecke WAEHREND des Lauschens nachgesehen
+     * wird, ob sie inzwischen bei Kundschaft oder beim Arzt ist (v0.64).
+     * Ein Block sind 1280 Samples bei 16 kHz = 80 ms; 125 Bloecke = 10 s.
+     *
+     * ANLASS (16.11.2026, bei Karl & Inge): Die Ankunft wurde um 14:50
+     * erkannt, das Lauschen lief trotzdem weiter. `ruhezone` wurde nur VOR
+     * dem Lauschen gefragt - und das Lauschen endet erst beim Weckwort oder
+     * einem Mikrofon-Aussetzer. Dass es bisher meist klappte, lag
+     * vermutlich am Aussetzer beim Trennen von Bluetooth im Auto.
+     */
+    const val RUHE_PRUEF_BLOECKE = 125
+
+    /**
+     * Die Pruefung waehrend des Lauschens - REINE Funktion, damit der
+     * Cloud-Build sie prueft. `block` zaehlt die gelesenen Bloecke seit
+     * Beginn des Lauschens (ab 1). Liefert den Zonennamen, wenn jetzt
+     * pausiert werden muss, sonst null. Zwischen den Pruefzeitpunkten wird
+     * `ruhezone` gar nicht erst gerufen (liest SharedPreferences).
+     */
+    fun ruheWaehrendLauschen(block: Int, ruhezone: () -> String?): String? =
+        if (block > 0 && block % RUHE_PRUEF_BLOECKE == 0) ruhezone() else null
+
     /** Dasselbe fuer den laufenden Dienst. */
     fun ruhezone(ctx: Context): String? =
         try {

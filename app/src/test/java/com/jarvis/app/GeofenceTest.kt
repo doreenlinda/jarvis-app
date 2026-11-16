@@ -431,6 +431,52 @@ class GeofenceTest {
         assertNull(Geofence.ruhezone(listOf(z("Anja", "kunde"))) { null })
     }
 
+    /*
+     * v0.64 (16.11.2026, bei Karl & Inge): Ankunft 14:50 erkannt, das
+     * Lauschen lief trotzdem weiter - die Zone wurde nur VOR dem Lauschen
+     * gefragt. Jetzt alle ~10 s auch WAEHREND des Lauschens.
+     */
+    @Test
+    fun waehrendDesLauschensWirdNachSpaetestens10SekundenGeprueft() {
+        // 80 ms je Block -> die Pruefung muss binnen 10 s kommen
+        assertTrue(Geofence.RUHE_PRUEF_BLOECKE * 80 <= 10_000)
+        // und nicht dauernd (SharedPreferences je Block waere Verschwendung)
+        assertTrue(Geofence.RUHE_PRUEF_BLOECKE >= 25)
+        val n = Geofence.RUHE_PRUEF_BLOECKE
+        assertEquals("Inge", Geofence.ruheWaehrendLauschen(n) { "Inge" })
+        assertEquals("Inge", Geofence.ruheWaehrendLauschen(3 * n) { "Inge" })
+    }
+
+    @Test
+    fun zwischenDenPruefzeitpunktenWirdDieZoneNichtGelesen() {
+        var gefragt = 0
+        for (b in 1 until Geofence.RUHE_PRUEF_BLOECKE) {
+            assertNull(Geofence.ruheWaehrendLauschen(b) { gefragt++; "Inge" })
+        }
+        assertEquals(0, gefragt)
+        assertNull(Geofence.ruheWaehrendLauschen(0) { gefragt++; "Inge" })
+        assertEquals(0, gefragt)
+    }
+
+    @Test
+    fun ohneRuhezoneLaeuftDasLauschenWeiter() {
+        assertNull(Geofence.ruheWaehrendLauschen(Geofence.RUHE_PRUEF_BLOECKE) { null })
+    }
+
+    @Test
+    fun dasLauschenFragtDieZoneWirklichAb() {
+        // Die reine Funktion nuetzt nichts, wenn die Schleife sie nicht ruft.
+        val quelle = File("src/main/java/com/jarvis/app/WakeWordService.kt").readText()
+        val start = quelle.indexOf("private fun lauscheBisWeckwort")
+        val ende = quelle.indexOf("private fun starteNachsehen")
+        assertTrue(start in 0 until ende)
+        val schleife = quelle.substring(start, ende)
+        assertTrue("lauscheBisWeckwort ruft ruheWaehrendLauschen nicht",
+            schleife.contains("Geofence.ruheWaehrendLauschen(++bloeckeGesamt)"))
+        assertTrue("lauscheBisWeckwort fragt die echte Zone nicht",
+            schleife.contains("Geofence.ruhezone(this)"))
+    }
+
     @Test
     fun eineZoneOhneArtPausiertNicht() {
         // Selbst gesetzte Zonen haben keine Art - die duerfen den Dienst
