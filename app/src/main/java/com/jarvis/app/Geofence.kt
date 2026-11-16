@@ -172,7 +172,7 @@ object Geofence {
      * einem Mikrofon-Aussetzer. Dass es bisher meist klappte, lag
      * vermutlich am Aussetzer beim Trennen von Bluetooth im Auto.
      */
-    const val RUHE_PRUEF_BLOECKE = 125
+    const val RUHE_PRUEF_BLOECKE = 1000
 
     /**
      * Die Pruefung waehrend des Lauschens - REINE Funktion, damit der
