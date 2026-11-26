@@ -41,8 +41,19 @@ import java.util.concurrent.TimeUnit
  */
 object Rueckfrage {
 
-    /** Rotationsplaetze 0..9. Platz 8 ist die Begruessung (zwei Dateien). */
-    private const val ANZAHL = 10
+    /**
+     * Rotationsplaetze 0..12. Platz 8 ist die Begruessung (zwei Dateien).
+     *
+     * STAND 26.11.2026 (v0.65, ihr Befund "klingt mechanisch", Hoerproben
+     * "Floskeln 26.11"): Die Saetze sind jetzt MIT "Hey Jarvis!" als
+     * Vorsatz vertont (previous_text, wird nicht gesprochen) - allein riet
+     * die Stimme die Betonung. Neu aufgenommen: 1, 2, 3, 6, 7, 9. Platz 4
+     * ("Ich hoere, Chefin.") ersetzt durch "Was liegt an?". Neu: 10 "Sie
+     * wuenschen?", 11 "Was kann ich fuer Sie tun?", 12 "Na? Mal sehen, was
+     * es jetzt wieder ist." (das "Na?" aus einer, der Rest aus einer
+     * anderen Lesart, eine halbe Sekunde Pause dazwischen - ihre Wahl).
+     */
+    private const val ANZAHL = 13
     private const val BEGRUESSUNG = 8
     /** Bis zu dieser Stunde "Guten Morgen", ab ABEND_AB "Guten Abend". */
     private const val MORGEN_BIS = 11

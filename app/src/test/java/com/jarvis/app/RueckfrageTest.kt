@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Die Rueckfrage nach dem Weckwort kommt VOR ihrer Frage - lokal.
@@ -185,6 +186,47 @@ class RueckfrageTest {
                 "sonst erst im Alltag auf, und zwar als Schweigen.",
             emptyList<String>(), fehlend.distinct()
         )
+    }
+
+    // ---- 5b. Jeder Platz spielt genau IHRE gewaehlte Aufnahme ------------
+    //
+    // 26.11.2026 (v0.65): Neu vertont mit "Hey Jarvis!" als Kontext, Auswahl
+    // nach ihrem Ohr (Hoerproben "Floskeln 26.11"). sha256 je Datei, damit
+    // ein Vertauschen oder ein stiller Neubau auffaellt - dann bitte erneut
+    // hoeren lassen, nicht einfach die Zahl hier nachtragen.
+    @Test
+    fun jederPlatzSpieltIhreGewaehlteAufnahme() {
+        val gewaehlt = mapOf(
+            "rueckfrage_0.mp3" to "11615653b92a5e49",        // Was wollen Sie?
+            "rueckfrage_1.mp3" to "f22061f529878c6e",        // Was wollen Sie denn schon wieder? (B)
+            "rueckfrage_2.mp3" to "2a796c0baaeb7bb3",        // Womit kann ich helfen? (B)
+            "rueckfrage_3.mp3" to "72a45ac194312892",        // Ich hoere Sie, laut und deutlich ... (C)
+            "rueckfrage_4.mp3" to "43c42545056cdfa3",        // Was liegt an? (ersetzt "Ich hoere, Chefin.")
+            "rueckfrage_5.mp3" to "fb851e138d088f58",        // Womit kann ich dienen?
+            "rueckfrage_6.mp3" to "a893491dde0d384b",        // Schiessen Sie los. (B)
+            "rueckfrage_7.mp3" to "624526f0c7d4e954",        // Was brauchen Sie? (B)
+            "rueckfrage_8_morgen.mp3" to "87003808792bc6db",
+            "rueckfrage_8_abend.mp3" to "414ab86a9b78ad30",
+            "rueckfrage_9.mp3" to "8f0a9cb7141947b5",        // Ganz Ohr meine Loewin (C)
+            "rueckfrage_10.mp3" to "0e0172bc2144e0a5",       // Sie wuenschen?
+            "rueckfrage_11.mp3" to "d8079173b3f56dbd",       // Was kann ich fuer Sie tun?
+            "rueckfrage_12.mp3" to "58cb9103b40b5056",       // Na? Mal sehen, was es jetzt wieder ist.
+        )
+        val falsch = gewaehlt.filter { (name, soll) ->
+            val f = File("src/main/assets", name)
+            val ist = if (f.isFile) MessageDigest.getInstance("SHA-256").digest(f.readBytes())
+                .joinToString("") { "%02x".format(it) }.substring(0, 16) else "fehlt"
+            ist != soll
+        }.keys
+        assertEquals("Diese Plaetze spielen nicht ihre gewaehlte Aufnahme",
+            emptySet<String>(), falsch)
+        val marke = "val ANZAHL = "
+        val anzahl = modul.substring(modul.indexOf(marke) + marke.length)
+            .takeWhile { it.isDigit() }.toInt()
+        val plaetze = (0 until anzahl).mapNotNull { nr ->
+            listOf(9, 20).mapNotNull { Rueckfrage.dateiFuer(nr, it) } }.flatten().toSet()
+        assertEquals("Jede gewaehlte Datei ist auch ein Rotationsplatz",
+            gewaehlt.keys, plaetze)
     }
 
     // ---- 6. Die tageszeitabhaengige Begruessung -----------------------
